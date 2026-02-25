@@ -106,11 +106,42 @@ describe("downloadMedia", () => {
     expect(mockGetUrlFromDirectPath).not.toHaveBeenCalled();
   });
 
-  it("propagates errors from downloadMediaMessage", async () => {
-    mockDownloadMediaMessage.mockRejectedValue(new Error("Download failed"));
+  it("retries with refreshed URL on initial failure", async () => {
+    const refreshedMsg = { key: {}, message: { imageMessage: { url: "https://refreshed-url" } } };
+    const socket = createMockSocket();
+    socket.updateMediaMessage.mockResolvedValue(refreshedMsg);
+    mockDownloadMediaMessage
+      .mockRejectedValueOnce(new Error("ETIMEDOUT"))
+      .mockResolvedValueOnce(Buffer.from("refreshed-data"));
 
-    await expect(downloadMedia(createMockSocket(), baseParams, mockLogger)).rejects.toThrow(
-      "Download failed",
+    const result = await downloadMedia(socket, baseParams, mockLogger);
+
+    expect(result).toEqual(Buffer.from("refreshed-data"));
+    expect(socket.updateMediaMessage).toHaveBeenCalledOnce();
+    expect(mockDownloadMediaMessage).toHaveBeenCalledTimes(2);
+    // Second call should use the refreshed message
+    expect(mockDownloadMediaMessage.mock.calls[1][0]).toBe(refreshedMsg);
+  });
+
+  it("propagates error when retry also fails", async () => {
+    const socket = createMockSocket();
+    socket.updateMediaMessage.mockResolvedValue({ key: {}, message: {} });
+    mockDownloadMediaMessage
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+      .mockRejectedValueOnce(new Error("Retry also failed"));
+
+    await expect(downloadMedia(socket, baseParams, mockLogger)).rejects.toThrow(
+      "Retry also failed",
     );
+  });
+
+  it("does not call updateMediaMessage on success", async () => {
+    const socket = createMockSocket();
+    mockDownloadMediaMessage.mockResolvedValue(Buffer.from("data"));
+
+    await downloadMedia(socket, baseParams, mockLogger);
+
+    expect(socket.updateMediaMessage).not.toHaveBeenCalled();
+    expect(mockDownloadMediaMessage).toHaveBeenCalledOnce();
   });
 });
