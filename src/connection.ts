@@ -56,6 +56,17 @@ async function connectSocket(
 
   socketState.socket = sock;
 
+  let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  async function syncGroupMetadata() {
+    try {
+      const groups = await sock.groupFetchAllParticipating();
+      await hooks?.onGroupsSync?.(groups);
+    } catch (err) {
+      logger.warn({ err }, "Failed to sync group metadata");
+    }
+  }
+
   sock.ev.process(async (events) => {
     let isLogout = false;
 
@@ -79,6 +90,10 @@ async function connectSocket(
       }
 
       if (connection === "close") {
+        if (syncTimeout) {
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
+        }
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         isLogout = statusCode === DisconnectReason.loggedOut;
         handleConnectionClose(
@@ -101,20 +116,23 @@ async function connectSocket(
         await hooks?.onDisconnected?.();
       } else if (connection === "open") {
         if (sock.user) {
-          connectionState.status = "connected";
+          connectionState.status = "syncing";
           connectionState.qrCode = null;
           connectionState.qrAscii = null;
           connectionState.user = sock.user.name ?? null;
-          logger.info(`Connection opened. WA user: ${sock.user.name}`);
+          logger.info(`Connection opened. WA user: ${sock.user.name}. Waiting for history sync...`);
           await hooks?.onConnected?.({ id: sock.user.id, name: sock.user.name ?? undefined });
 
-          // Sync group metadata
-          try {
-            const groups = await sock.groupFetchAllParticipating();
-            await hooks?.onGroupsSync?.(groups);
-          } catch (err) {
-            logger.warn({ err }, "Failed to sync group metadata");
-          }
+          // Fallback: promote to "connected" if history sync never fires isLatest
+          const timeoutMs = config.historySyncTimeoutMs ?? 60_000;
+          syncTimeout = setTimeout(() => {
+            if (connectionState.status === "syncing") {
+              logger.info("History sync timeout — promoting to connected");
+              connectionState.status = "connected";
+              hooks?.onReady?.();
+              syncGroupMetadata();
+            }
+          }, timeoutMs);
         } else {
           connectionState.status = "connecting";
           logger.info("Connection opened but waiting for user info...");
@@ -128,8 +146,19 @@ async function connectSocket(
     }
 
     if (events["messaging-history.set"]) {
-      const { chats, contacts, messages } = events["messaging-history.set"];
-      await hooks?.onHistorySync?.({ chats, contacts, messages });
+      const { chats, contacts, messages, isLatest } = events["messaging-history.set"];
+      await hooks?.onHistorySync?.({ chats, contacts, messages, isLatest: isLatest ?? false });
+
+      if (isLatest && connectionState.status === "syncing") {
+        if (syncTimeout) {
+          clearTimeout(syncTimeout);
+          syncTimeout = null;
+        }
+        connectionState.status = "connected";
+        logger.info("History sync complete — status is now connected");
+        await hooks?.onReady?.();
+        await syncGroupMetadata();
+      }
     }
 
     if (events["contacts.upsert"]) {

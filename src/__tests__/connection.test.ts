@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BaileysClientConfig } from "../types.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BaileysClientConfig, ConnectionState } from "../types.js";
 
 // Capture the callback passed to sock.ev.process()
 type EventProcessor = (events: Record<string, any>) => Promise<void>;
@@ -48,6 +48,7 @@ describe("connection event processing", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
     config = {
       authDir: "/tmp/test-auth",
       logger: {
@@ -61,14 +62,21 @@ describe("connection event processing", () => {
     };
   });
 
-  async function initConnection() {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function initConnection(): Promise<{
+    processEvents: EventProcessor;
+    connectionState: ConnectionState;
+  }> {
     const { startConnection } = await import("../connection.js");
-    await startConnection(config);
-    return capturedProcessor;
+    const result = await startConnection(config);
+    return { processEvents: capturedProcessor, connectionState: result.connectionState };
   }
 
   it("skips saveCreds when event batch contains a logout disconnect", async () => {
-    const processEvents = await initConnection();
+    const { processEvents } = await initConnection();
 
     await processEvents({
       "connection.update": {
@@ -84,7 +92,7 @@ describe("connection event processing", () => {
   });
 
   it("calls saveCreds when event batch has creds.update without connection close", async () => {
-    const processEvents = await initConnection();
+    const { processEvents } = await initConnection();
 
     await processEvents({
       "creds.update": {},
@@ -94,7 +102,7 @@ describe("connection event processing", () => {
   });
 
   it("calls saveCreds when event batch has a non-logout close", async () => {
-    const processEvents = await initConnection();
+    const { processEvents } = await initConnection();
 
     await processEvents({
       "connection.update": {
@@ -107,5 +115,134 @@ describe("connection event processing", () => {
     });
 
     expect(mockSaveCreds).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets status to "syncing" after connection open (not "connected")', async () => {
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    expect(connectionState.status).toBe("syncing");
+  });
+
+  it('promotes to "connected" when messaging-history.set fires with isLatest: true', async () => {
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+    expect(connectionState.status).toBe("syncing");
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
+    });
+
+    expect(connectionState.status).toBe("connected");
+  });
+
+  it('stays "syncing" when messaging-history.set fires with isLatest: false', async () => {
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: false },
+    });
+
+    expect(connectionState.status).toBe("syncing");
+  });
+
+  it("fires onReady hook when history sync completes", async () => {
+    const onReady = vi.fn();
+    config.hooks = { ...config.hooks, onReady };
+    const { processEvents } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    expect(onReady).not.toHaveBeenCalled();
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
+    });
+
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs group metadata after history sync, not on connection open", async () => {
+    const { processEvents } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+    expect(mockSock.groupFetchAllParticipating).not.toHaveBeenCalled();
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
+    });
+    expect(mockSock.groupFetchAllParticipating).toHaveBeenCalledTimes(1);
+  });
+
+  it('promotes to "connected" via fallback timeout if isLatest never fires', async () => {
+    config.historySyncTimeoutMs = 5_000;
+    const onReady = vi.fn();
+    config.hooks = { ...config.hooks, onReady };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+    expect(connectionState.status).toBe("syncing");
+
+    vi.advanceTimersByTime(5_000);
+
+    expect(connectionState.status).toBe("connected");
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels fallback timeout when isLatest fires before timeout", async () => {
+    config.historySyncTimeoutMs = 5_000;
+    const onReady = vi.fn();
+    config.hooks = { ...config.hooks, onReady };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
+    });
+    expect(onReady).toHaveBeenCalledTimes(1);
+
+    // Advance past the timeout — onReady should NOT fire again
+    vi.advanceTimersByTime(5_000);
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(connectionState.status).toBe("connected");
+  });
+
+  it("passes isLatest through to onHistorySync hook", async () => {
+    const onHistorySync = vi.fn();
+    config.hooks = { ...config.hooks, onHistorySync };
+    const { processEvents } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: false },
+    });
+    expect(onHistorySync).toHaveBeenCalledWith(expect.objectContaining({ isLatest: false }));
+
+    await processEvents({
+      "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
+    });
+    expect(onHistorySync).toHaveBeenCalledWith(expect.objectContaining({ isLatest: true }));
   });
 });

@@ -11,7 +11,12 @@ export type {
 
 export type WhatsAppSocket = ReturnType<typeof makeWASocket>;
 
-export type ConnectionStatus = "disconnected" | "qr_pending" | "connecting" | "connected";
+export type ConnectionStatus =
+  | "disconnected"
+  | "qr_pending"
+  | "connecting"
+  | "syncing"
+  | "connected";
 
 export type ConnectionState = {
   status: ConnectionStatus;
@@ -75,7 +80,9 @@ export type BaileysClientHooks = {
     chats: import("@whiskeysockets/baileys").Chat[];
     contacts: import("@whiskeysockets/baileys").Contact[];
     messages: import("@whiskeysockets/baileys").WAMessage[];
+    isLatest: boolean;
   }) => void | Promise<void>;
+  onReady?: () => void | Promise<void>;
   onGroupsSync?: (
     groups: Record<string, import("@whiskeysockets/baileys").GroupMetadata>,
   ) => void | Promise<void>;
@@ -87,6 +94,8 @@ export type BaileysClientConfig = {
   hooks?: BaileysClientHooks;
   shouldIgnoreJid?: (jid: string) => boolean;
   generateHighQualityLinkPreview?: boolean;
+  /** Timeout (ms) to wait for history sync before promoting to "connected". Default: 60000. */
+  historySyncTimeoutMs?: number;
 };
 
 export type MediaType = "image" | "video" | "audio" | "ptt" | "document" | "sticker";
