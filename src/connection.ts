@@ -57,6 +57,8 @@ async function connectSocket(
   socketState.socket = sock;
 
   sock.ev.process(async (events) => {
+    let isLogout = false;
+
     if (events["connection.update"]) {
       const update = events["connection.update"];
       const { connection, lastDisconnect, qr } = update;
@@ -78,6 +80,7 @@ async function connectSocket(
 
       if (connection === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+        isLogout = statusCode === DisconnectReason.loggedOut;
         handleConnectionClose(
           statusCode,
           lastDisconnect?.error as Error | undefined,
@@ -119,7 +122,7 @@ async function connectSocket(
       }
     }
 
-    if (events["creds.update"]) {
+    if (events["creds.update"] && !isLogout) {
       await saveCreds();
       logger.info("Credentials saved.");
     }
