@@ -28,6 +28,7 @@ Always run `pnpm check` before committing.
 | `src/types.ts` | All types and the `BaileysClientHooks` / `BaileysClientConfig` interfaces |
 | `src/connection.ts` | `startConnection()` — socket creation, event wiring, reconnection |
 | `src/connection-handler.ts` | `handleConnectionClose()` — retry/logout logic (DI pattern) |
+| `src/media.ts` | `downloadMedia()` — media download with automatic CDN URL refresh |
 | `src/sender.ts` | `sendTextMessage()`, `sendMediaMessage()` — take socket as param |
 | `src/utils.ts` | JID helpers, QR generation, media extraction, message parsing |
 | `src/index.ts` | Barrel export |

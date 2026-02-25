@@ -1,6 +1,7 @@
 export { startConnection } from "./connection.js";
 export { handleConnectionClose } from "./connection-handler.js";
-export { downloadMedia, sendMediaMessage, sendTextMessage } from "./sender.js";
+export { downloadMedia } from "./media.js";
+export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
   BaileysClientConfig,
   BaileysClientHooks,
@@ -11,6 +12,7 @@ export type {
   Contact,
   DownloadMediaParams,
   MediaInfo,
+  MediaType,
   ParsedMessage,
   SocketState,
   WAMessage,

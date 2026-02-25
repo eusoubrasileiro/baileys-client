@@ -89,11 +89,13 @@ export type BaileysClientConfig = {
   generateHighQualityLinkPreview?: boolean;
 };
 
+export type MediaType = "image" | "video" | "audio" | "ptt" | "document" | "sticker";
+
 export type DownloadMediaParams = {
   mediaKey: string; // base64-encoded
   directPath: string;
   mediaUrl?: string | null;
-  mediaType: string; // 'image' | 'video' | 'audio' | 'ptt' | 'document' | 'sticker'
+  mediaType: MediaType;
   messageId: string;
   chatJid: string;
   fromMe: boolean;
