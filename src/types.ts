@@ -89,6 +89,16 @@ export type BaileysClientConfig = {
   generateHighQualityLinkPreview?: boolean;
 };
 
+export type DownloadMediaParams = {
+  mediaKey: string; // base64-encoded
+  directPath: string;
+  mediaUrl?: string | null;
+  mediaType: string; // 'image' | 'video' | 'audio' | 'ptt' | 'document' | 'sticker'
+  messageId: string;
+  chatJid: string;
+  fromMe: boolean;
+};
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;
