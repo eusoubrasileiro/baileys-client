@@ -1,9 +1,7 @@
 import {
-  type DownloadableMessage,
-  downloadContentFromMessage,
+  downloadMediaMessage,
   getUrlFromDirectPath,
   jidNormalizedUser,
-  type MediaType,
   toBuffer,
 } from "@whiskeysockets/baileys";
 import type { Logger } from "pino";
@@ -95,9 +93,9 @@ function mediaTypeToMessageKey(mediaType: string): string {
 
 /**
  * Download media from WhatsApp using stored metadata.
- * First tries a direct download via directPath. If the CDN URL has expired,
- * uses socket.updateMediaMessage() to request a fresh URL from WhatsApp servers,
- * then retries the download.
+ * Uses Baileys' downloadMediaMessage which automatically handles expired URLs:
+ * on HTTP 410/404 it calls socket.updateMediaMessage() to get a fresh URL
+ * from WhatsApp servers and retries the download.
  */
 export async function downloadMedia(
   socket: WhatsAppSocket,
@@ -106,52 +104,28 @@ export async function downloadMedia(
 ): Promise<Buffer> {
   const { mediaKey, directPath, mediaUrl, mediaType, messageId, chatJid, fromMe } = params;
   const mediaKeyBuffer = new Uint8Array(Buffer.from(mediaKey, "base64"));
-  const baileysMediaType = (mediaType === "ptt" ? "audio" : mediaType) as MediaType;
 
-  const makeDownloadable = (dp: string, url?: string | null): DownloadableMessage => ({
-    mediaKey: mediaKeyBuffer,
-    directPath: dp,
-    url: url || undefined,
-  });
-
-  // Attempt 1: direct download with refreshed URL from directPath
-  try {
-    const refreshedUrl = getUrlFromDirectPath(directPath);
-    const stream = await downloadContentFromMessage(
-      makeDownloadable(directPath, refreshedUrl),
-      baileysMediaType,
-    );
-    return await toBuffer(stream);
-  } catch (error) {
-    logger.warn(
-      { messageId, mediaType, error: (error as Error).message },
-      "Direct download failed, requesting fresh URL via updateMediaMessage",
-    );
-  }
-
-  // Attempt 2: ask WhatsApp servers for a fresh URL via the socket
   const messageKey = mediaTypeToMessageKey(mediaType);
-  const stubMessage = {
+  const msg = {
     key: { remoteJid: chatJid, id: messageId, fromMe },
     message: {
       [messageKey]: {
         mediaKey: mediaKeyBuffer,
         directPath,
-        url: mediaUrl || undefined,
+        url: mediaUrl || getUrlFromDirectPath(directPath),
       },
     },
   };
 
-  const updated = await socket.updateMediaMessage(stubMessage as any);
-  const updatedMedia = updated.message?.[messageKey as keyof typeof updated.message] as any;
-
-  if (!updatedMedia?.url && !updatedMedia?.directPath) {
-    throw new Error(`WhatsApp did not return a fresh URL for message ${messageId}`);
-  }
-
-  const stream = await downloadContentFromMessage(
-    makeDownloadable(updatedMedia.directPath || directPath, updatedMedia.url),
-    baileysMediaType,
+  const result = await downloadMediaMessage(
+    msg as any,
+    "buffer",
+    {},
+    {
+      logger,
+      reuploadRequest: socket.updateMediaMessage,
+    },
   );
-  return await toBuffer(stream);
+
+  return Buffer.isBuffer(result) ? result : await toBuffer(result as any);
 }
