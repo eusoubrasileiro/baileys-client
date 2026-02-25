@@ -7,6 +7,8 @@ function createMockSocket(overrides: any = {}) {
     sendMessage: vi.fn().mockResolvedValue({
       key: { id: "msg-123" },
     }),
+    presenceSubscribe: vi.fn().mockResolvedValue(undefined),
+    sendPresenceUpdate: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as any;
 }
@@ -62,6 +64,42 @@ describe("sendTextMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Network error");
+  });
+
+  it("simulates typing presence when delay option is set", async () => {
+    const socket = createMockSocket();
+
+    await sendTextMessage(socket, "5511999999999@s.whatsapp.net", "Hello", mockLogger, {
+      delay: 100,
+    });
+
+    expect(socket.presenceSubscribe).toHaveBeenCalledWith("5511999999999@s.whatsapp.net");
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledWith(
+      "composing",
+      "5511999999999@s.whatsapp.net",
+    );
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledWith(
+      "paused",
+      "5511999999999@s.whatsapp.net",
+    );
+    expect(socket.sendMessage).toHaveBeenCalled();
+  });
+
+  it("still sends if presence simulation fails", async () => {
+    const socket = createMockSocket({
+      presenceSubscribe: vi.fn().mockRejectedValue(new Error("presence error")),
+    });
+
+    const result = await sendTextMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      "Hello",
+      mockLogger,
+      { delay: 100 },
+    );
+
+    expect(result.success).toBe(true);
+    expect(socket.sendMessage).toHaveBeenCalled();
   });
 });
 
@@ -148,5 +186,24 @@ describe("sendMediaMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Upload failed");
+  });
+
+  it("simulates typing presence when delay option is set", async () => {
+    const socket = createMockSocket();
+
+    await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer: Buffer.from("img"), type: "image", caption: "pic" },
+      mockLogger,
+      { delay: 50 },
+    );
+
+    expect(socket.presenceSubscribe).toHaveBeenCalled();
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledWith(
+      "composing",
+      "5511999999999@s.whatsapp.net",
+    );
+    expect(socket.sendMessage).toHaveBeenCalled();
   });
 });

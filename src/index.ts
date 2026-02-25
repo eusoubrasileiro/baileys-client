@@ -1,5 +1,6 @@
 export { startConnection } from "./connection.js";
 export { handleConnectionClose } from "./connection-handler.js";
+export { createSendQueue } from "./send-queue.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
   BaileysClientConfig,
@@ -10,7 +11,12 @@ export type {
   ConnectionStatus,
   Contact,
   MediaInfo,
+  MediaPayload,
   ParsedMessage,
+  SendOptions,
+  SendQueue,
+  SendQueueConfig,
+  SendResult,
   SocketState,
   WAMessage,
   WAMessageUpdate,

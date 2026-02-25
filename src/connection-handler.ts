@@ -31,8 +31,15 @@ export function handleConnectionClose(
           );
         },
       })
-      .catch((err) => {
+      .catch(async (err) => {
         logger.error({ err }, "All reconnection attempts failed.");
+        try {
+          await deps.hooks?.onReconnectionFailed?.(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+        } catch (hookErr) {
+          logger.error({ err: hookErr }, 'Hook "onReconnectionFailed" threw an error');
+        }
       });
   } else {
     // Logout: clear credentials and reconnect after delay
@@ -40,8 +47,15 @@ export function handleConnectionClose(
     deps.rmSync(deps.authDir, { recursive: true, force: true });
     deps.mkdirSync(deps.authDir, { recursive: true });
     deps.setTimeoutFn(() => {
-      deps.startConnection().catch((err) => {
+      deps.startConnection().catch(async (err) => {
         logger.error({ err }, "Failed to restart connection after logout");
+        try {
+          await deps.hooks?.onReconnectionFailed?.(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+        } catch (hookErr) {
+          logger.error({ err: hookErr }, 'Hook "onReconnectionFailed" threw an error');
+        }
       });
     }, 2000);
   }

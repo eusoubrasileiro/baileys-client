@@ -52,11 +52,47 @@ export type ParsedMessage = {
   file_enc_sha256: string | null;
 };
 
+export type SendResult = {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+};
+
+export type SendOptions = {
+  /** Delay in ms before sending. Shows "composing" presence to the recipient. */
+  delay?: number;
+};
+
+export type MediaPayload = {
+  buffer: Buffer;
+  type: "image" | "video" | "document" | "audio";
+  caption?: string;
+  fileName?: string;
+  mimetype?: string;
+};
+
+export type SendQueueConfig = {
+  /** Minimum delay between consecutive messages in ms. Default: 1000 */
+  minDelayMs?: number;
+  /** Maximum delay between consecutive messages in ms (adds random jitter). Default: 3000 */
+  maxDelayMs?: number;
+};
+
+export type SendQueue = {
+  sendText: (jid: string, text: string, options?: SendOptions) => Promise<SendResult>;
+  sendMedia: (jid: string, media: MediaPayload, options?: SendOptions) => Promise<SendResult>;
+  /** Number of messages waiting in the queue */
+  readonly pending: number;
+  /** Stop accepting new messages */
+  dispose: () => void;
+};
+
 export type BaileysClientHooks = {
   onQrCode?: (qr: string, ascii: string) => void | Promise<void>;
   onConnecting?: () => void | Promise<void>;
   onConnected?: (user: { id: string; name?: string }) => void | Promise<void>;
   onDisconnected?: () => void | Promise<void>;
+  onReconnectionFailed?: (error: Error) => void | Promise<void>;
   onMessageUpsert?: (
     messages: import("@whiskeysockets/baileys").WAMessage[],
     type: "notify" | "append",
@@ -93,6 +129,7 @@ export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;
   socketState: SocketState;
+  hooks?: BaileysClientHooks;
   startConnection: () => Promise<WhatsAppSocket>;
   rmSync: (path: string, opts: { recursive: boolean; force: boolean }) => void;
   mkdirSync: (path: string, opts: { recursive: boolean }) => void;

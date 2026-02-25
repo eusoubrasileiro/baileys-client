@@ -8,9 +8,23 @@ import {
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
 import pRetry from "p-retry";
+import type { Logger } from "pino";
 import { handleConnectionClose } from "./connection-handler.js";
 import type { BaileysClientConfig, ConnectionState, SocketState, WhatsAppSocket } from "./types.js";
 import { generateAsciiQR } from "./utils.js";
+
+async function safeHook(
+  fn: (() => void | Promise<void>) | undefined,
+  name: string,
+  logger: Logger,
+): Promise<void> {
+  if (!fn) return;
+  try {
+    await fn();
+  } catch (err) {
+    logger.error({ err }, `Hook "${name}" threw an error`);
+  }
+}
 
 export async function startConnection(config: BaileysClientConfig): Promise<{
   socket: WhatsAppSocket;
@@ -64,16 +78,17 @@ async function connectSocket(
       if (qr) {
         connectionState.status = "qr_pending";
         connectionState.qrCode = qr;
-        connectionState.qrAscii = await generateAsciiQR(qr);
+        const ascii = await generateAsciiQR(qr);
+        connectionState.qrAscii = ascii;
         logger.info("QR Code received.");
-        await hooks?.onQrCode?.(qr, connectionState.qrAscii);
+        await safeHook(() => hooks?.onQrCode?.(qr, ascii), "onQrCode", logger);
       }
 
       if (connection === "connecting") {
         connectionState.status = "connecting";
         connectionState.qrCode = null;
         connectionState.qrAscii = null;
-        await hooks?.onConnecting?.();
+        await safeHook(() => hooks?.onConnecting?.(), "onConnecting", logger);
       }
 
       if (connection === "close") {
@@ -86,6 +101,7 @@ async function connectSocket(
             logger,
             connectionState,
             socketState,
+            hooks,
             startConnection: () => connectSocket(config, connectionState, socketState),
             rmSync: fs.rmSync,
             mkdirSync: fs.mkdirSync,
@@ -95,7 +111,7 @@ async function connectSocket(
             loggedOutCode: DisconnectReason.loggedOut,
           },
         );
-        await hooks?.onDisconnected?.();
+        await safeHook(() => hooks?.onDisconnected?.(), "onDisconnected", logger);
       } else if (connection === "open") {
         if (sock.user) {
           connectionState.status = "connected";
@@ -103,12 +119,16 @@ async function connectSocket(
           connectionState.qrAscii = null;
           connectionState.user = sock.user.name ?? null;
           logger.info(`Connection opened. WA user: ${sock.user.name}`);
-          await hooks?.onConnected?.({ id: sock.user.id, name: sock.user.name ?? undefined });
+          await safeHook(
+            () => hooks?.onConnected?.({ id: sock.user!.id, name: sock.user!.name ?? undefined }),
+            "onConnected",
+            logger,
+          );
 
           // Sync group metadata
           try {
             const groups = await sock.groupFetchAllParticipating();
-            await hooks?.onGroupsSync?.(groups);
+            await safeHook(() => hooks?.onGroupsSync?.(groups), "onGroupsSync", logger);
           } catch (err) {
             logger.warn({ err }, "Failed to sync group metadata");
           }
@@ -126,37 +146,42 @@ async function connectSocket(
 
     if (events["messaging-history.set"]) {
       const { chats, contacts, messages } = events["messaging-history.set"];
-      await hooks?.onHistorySync?.({ chats, contacts, messages });
+      await safeHook(
+        () => hooks?.onHistorySync?.({ chats, contacts, messages }),
+        "onHistorySync",
+        logger,
+      );
     }
 
     if (events["contacts.upsert"]) {
       const contacts = events["contacts.upsert"];
       logger.info({ count: contacts.length }, "Received contacts.upsert event");
-      await hooks?.onContactsUpsert?.(contacts);
+      await safeHook(() => hooks?.onContactsUpsert?.(contacts), "onContactsUpsert", logger);
     }
 
     if (events["contacts.update"]) {
       const contacts = events["contacts.update"];
       logger.info({ count: contacts.length }, "Received contacts.update event");
-      await hooks?.onContactsUpdate?.(contacts);
+      await safeHook(() => hooks?.onContactsUpdate?.(contacts), "onContactsUpdate", logger);
     }
 
     if (events["messages.upsert"]) {
       const { messages, type } = events["messages.upsert"];
       logger.info({ type, count: messages.length }, "Received messages.upsert event");
       if (type === "notify" || type === "append") {
-        await hooks?.onMessageUpsert?.(messages, type);
+        await safeHook(() => hooks?.onMessageUpsert?.(messages, type), "onMessageUpsert", logger);
       }
     }
 
     if (events["messages.update"]) {
       const updates = events["messages.update"];
-      await hooks?.onMessagesUpdate?.(updates);
+      await safeHook(() => hooks?.onMessagesUpdate?.(updates), "onMessagesUpdate", logger);
     }
 
     if (events["chats.update"]) {
-      logger.info({ count: events["chats.update"].length }, "Received chats.update event");
-      await hooks?.onChatsUpdate?.(events["chats.update"]);
+      const chatsUpdate = events["chats.update"];
+      logger.info({ count: chatsUpdate.length }, "Received chats.update event");
+      await safeHook(() => hooks?.onChatsUpdate?.(chatsUpdate), "onChatsUpdate", logger);
     }
   });
 
