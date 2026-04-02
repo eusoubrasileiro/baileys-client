@@ -188,8 +188,8 @@ describe("connection event processing", () => {
     expect(mockSock.groupFetchAllParticipating).toHaveBeenCalledTimes(1);
   });
 
-  it('promotes to "connected" via fallback timeout if isLatest never fires', async () => {
-    config.historySyncTimeoutMs = 5_000;
+  it('promotes to "connected" via inactivity timeout if isLatest never fires', async () => {
+    config.historySyncInactivityTimeoutMs = 5_000;
     const onReady = vi.fn();
     config.hooks = { ...config.hooks, onReady };
     const { processEvents, connectionState } = await initConnection();
@@ -205,8 +205,8 @@ describe("connection event processing", () => {
     expect(onReady).toHaveBeenCalledTimes(1);
   });
 
-  it("cancels fallback timeout when isLatest fires before timeout", async () => {
-    config.historySyncTimeoutMs = 5_000;
+  it("cancels inactivity timeout when isLatest fires before timeout", async () => {
+    config.historySyncInactivityTimeoutMs = 5_000;
     const onReady = vi.fn();
     config.hooks = { ...config.hooks, onReady };
     const { processEvents, connectionState } = await initConnection();
@@ -244,5 +244,123 @@ describe("connection event processing", () => {
       "messaging-history.set": { chats: [], contacts: [], messages: [], isLatest: true },
     });
     expect(onHistorySync).toHaveBeenCalledWith(expect.objectContaining({ isLatest: true }));
+  });
+
+  it("resets inactivity timeout on each history sync batch", async () => {
+    config.historySyncInactivityTimeoutMs = 5_000;
+    const onReady = vi.fn();
+    config.hooks = { ...config.hooks, onReady };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+    expect(connectionState.status).toBe("syncing");
+
+    // First batch at t=0
+    await processEvents({
+      "messaging-history.set": {
+        chats: [{ id: "a" }],
+        contacts: [],
+        messages: [],
+        isLatest: false,
+      },
+    });
+
+    // Advance 4s (just before timeout) — still syncing
+    vi.advanceTimersByTime(4_000);
+    expect(connectionState.status).toBe("syncing");
+
+    // Second batch at t=4s resets the timer
+    await processEvents({
+      "messaging-history.set": {
+        chats: [],
+        contacts: [{ id: "b" }],
+        messages: [],
+        isLatest: false,
+      },
+    });
+
+    // Advance another 4s (t=8s, but only 4s since last batch) — still syncing
+    vi.advanceTimersByTime(4_000);
+    expect(connectionState.status).toBe("syncing");
+
+    // Advance past the inactivity timeout (5s since last batch)
+    vi.advanceTimersByTime(1_000);
+    expect(connectionState.status).toBe("connected");
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("tracks sync progress across batches", async () => {
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    expect(connectionState.syncProgress).toEqual({
+      chats: 0,
+      contacts: 0,
+      messages: 0,
+      lastBatchAt: null,
+    });
+
+    await processEvents({
+      "messaging-history.set": {
+        chats: [{ id: "c1" }, { id: "c2" }],
+        contacts: [{ id: "ct1" }],
+        messages: [{ key: { id: "m1" } }, { key: { id: "m2" } }, { key: { id: "m3" } }],
+        isLatest: false,
+      },
+    });
+
+    expect(connectionState.syncProgress.chats).toBe(2);
+    expect(connectionState.syncProgress.contacts).toBe(1);
+    expect(connectionState.syncProgress.messages).toBe(3);
+    expect(connectionState.syncProgress.lastBatchAt).toBeInstanceOf(Date);
+
+    await processEvents({
+      "messaging-history.set": {
+        chats: [{ id: "c3" }],
+        contacts: [],
+        messages: [{ key: { id: "m4" } }],
+        isLatest: true,
+      },
+    });
+
+    expect(connectionState.syncProgress.chats).toBe(3);
+    expect(connectionState.syncProgress.contacts).toBe(1);
+    expect(connectionState.syncProgress.messages).toBe(4);
+  });
+
+  it("resets sync progress on new connection", async () => {
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    await processEvents({
+      "messaging-history.set": {
+        chats: [{ id: "c1" }],
+        contacts: [{ id: "ct1" }],
+        messages: [{ key: { id: "m1" } }],
+        isLatest: true,
+      },
+    });
+
+    expect(connectionState.syncProgress.chats).toBe(1);
+
+    // Simulate reconnection
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    expect(connectionState.syncProgress).toEqual({
+      chats: 0,
+      contacts: 0,
+      messages: 0,
+      lastBatchAt: null,
+    });
   });
 });

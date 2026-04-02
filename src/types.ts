@@ -18,11 +18,19 @@ export type ConnectionStatus =
   | "syncing"
   | "connected";
 
+export type SyncProgress = {
+  chats: number;
+  contacts: number;
+  messages: number;
+  lastBatchAt: Date | null;
+};
+
 export type ConnectionState = {
   status: ConnectionStatus;
   qrCode: string | null;
   qrAscii: string | null;
   user: string | null;
+  syncProgress: SyncProgress;
 };
 
 export type SocketState = {
@@ -94,7 +102,9 @@ export type BaileysClientConfig = {
   hooks?: BaileysClientHooks;
   shouldIgnoreJid?: (jid: string) => boolean;
   generateHighQualityLinkPreview?: boolean;
-  /** Timeout (ms) to wait for history sync before promoting to "connected". Default: 60000. */
+  /** Inactivity timeout (ms) — resets on each sync batch. Default: 60000. */
+  historySyncInactivityTimeoutMs?: number;
+  /** @deprecated Use historySyncInactivityTimeoutMs instead. */
   historySyncTimeoutMs?: number;
 };
 

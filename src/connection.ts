@@ -22,6 +22,7 @@ export async function startConnection(config: BaileysClientConfig): Promise<{
     qrCode: null,
     qrAscii: null,
     user: null,
+    syncProgress: { chats: 0, contacts: 0, messages: 0, lastBatchAt: null },
   };
 
   const socketState: SocketState = {
@@ -57,6 +58,8 @@ async function connectSocket(
   socketState.socket = sock;
 
   let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+  const inactivityTimeoutMs =
+    config.historySyncInactivityTimeoutMs ?? config.historySyncTimeoutMs ?? 60_000;
 
   async function syncGroupMetadata() {
     try {
@@ -120,19 +123,19 @@ async function connectSocket(
           connectionState.qrCode = null;
           connectionState.qrAscii = null;
           connectionState.user = sock.user.name ?? null;
+          connectionState.syncProgress = { chats: 0, contacts: 0, messages: 0, lastBatchAt: null };
           logger.info(`Connection opened. WA user: ${sock.user.name}. Waiting for history sync...`);
           await hooks?.onConnected?.({ id: sock.user.id, name: sock.user.name ?? undefined });
 
-          // Fallback: promote to "connected" if history sync never fires isLatest
-          const timeoutMs = config.historySyncTimeoutMs ?? 60_000;
+          // Fallback: promote to "connected" if no history sync batches arrive
           syncTimeout = setTimeout(() => {
             if (connectionState.status === "syncing") {
-              logger.info("History sync timeout — promoting to connected");
+              logger.info("History sync inactivity timeout — promoting to connected");
               connectionState.status = "connected";
               hooks?.onReady?.();
               syncGroupMetadata();
             }
-          }, timeoutMs);
+          }, inactivityTimeoutMs);
         } else {
           connectionState.status = "connecting";
           logger.info("Connection opened but waiting for user info...");
@@ -149,15 +152,38 @@ async function connectSocket(
       const { chats, contacts, messages, isLatest } = events["messaging-history.set"];
       await hooks?.onHistorySync?.({ chats, contacts, messages, isLatest: isLatest ?? false });
 
-      if (isLatest && connectionState.status === "syncing") {
+      // Track sync progress
+      connectionState.syncProgress.chats += chats.length;
+      connectionState.syncProgress.contacts += contacts.length;
+      connectionState.syncProgress.messages += messages.length;
+      connectionState.syncProgress.lastBatchAt = new Date();
+
+      if (connectionState.status === "syncing") {
         if (syncTimeout) {
           clearTimeout(syncTimeout);
           syncTimeout = null;
         }
-        connectionState.status = "connected";
-        logger.info("History sync complete — status is now connected");
-        await hooks?.onReady?.();
-        await syncGroupMetadata();
+
+        if (isLatest) {
+          connectionState.status = "connected";
+          logger.info("History sync complete — status is now connected");
+          await hooks?.onReady?.();
+          await syncGroupMetadata();
+        } else {
+          // More batches expected — reset inactivity timeout
+          logger.info(
+            { progress: connectionState.syncProgress },
+            "History sync batch received, resetting inactivity timeout",
+          );
+          syncTimeout = setTimeout(() => {
+            if (connectionState.status === "syncing") {
+              logger.info("History sync inactivity timeout — promoting to connected");
+              connectionState.status = "connected";
+              hooks?.onReady?.();
+              syncGroupMetadata();
+            }
+          }, inactivityTimeoutMs);
+        }
       }
     }
 
