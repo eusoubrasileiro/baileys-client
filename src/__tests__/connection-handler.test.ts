@@ -46,13 +46,35 @@ describe("handleConnectionClose", () => {
     expect(deps.socketState.socket).toBeNull();
   });
 
-  it("retries with p-retry on non-logout close", () => {
+  it("retries with p-retry using the exact option shape consumed by p-retry v7+", () => {
     const deps = createMockDeps();
 
     handleConnectionClose(500, new Error("server error"), "InternalError", deps);
 
-    expect(deps.pRetryFn).toHaveBeenCalledTimes(1);
     expect(deps.rmSync).not.toHaveBeenCalled();
+    expect(deps.pRetryFn).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        retries: 10,
+        minTimeout: 1000,
+        maxTimeout: 60000,
+        factor: 2,
+        onFailedAttempt: expect.any(Function),
+      }),
+    );
+  });
+
+  it("onFailedAttempt callback reads err.attemptNumber and err.retriesLeft", () => {
+    const deps = createMockDeps();
+
+    handleConnectionClose(500, new Error("server error"), "InternalError", deps);
+
+    const [, options] = (deps.pRetryFn as any).mock.calls[0];
+    options.onFailedAttempt({ attemptNumber: 2, retriesLeft: 8, message: "x" });
+
+    const reconnectCall = (deps.logger.warn as any).mock.calls.at(-1)[0];
+    expect(reconnectCall).toContain("2");
+    expect(reconnectCall).toContain("8");
   });
 
   it("clears auth and reconnects on logout", () => {
