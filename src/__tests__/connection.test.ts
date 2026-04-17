@@ -127,6 +127,49 @@ describe("connection event processing", () => {
     expect(connectionState.status).toBe("syncing");
   });
 
+  it("populates connectionState.user with sock.user.name on connection.open", async () => {
+    mockSock.user = { id: "553188887777@s.whatsapp.net", name: "TestUser" };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    expect(connectionState.user).toBe("TestUser");
+  });
+
+  it("falls back to JID phone portion when sock.user.name is undefined on first open", async () => {
+    mockSock.user = { id: "553188887777:11@s.whatsapp.net", name: undefined as any };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+
+    // Bug this prevents: qr-server showed "Linked as ?" because user stayed null
+    // Fallback strips device-number (":11") and suffix ("@s.whatsapp.net").
+    expect(connectionState.user).toBe("553188887777");
+  });
+
+  it("upgrades connectionState.user on creds.update once sock.user.name appears", async () => {
+    mockSock.user = { id: "553188887777:11@s.whatsapp.net", name: undefined as any };
+    const { processEvents, connectionState } = await initConnection();
+
+    await processEvents({
+      "connection.update": { connection: "open" },
+    });
+    expect(connectionState.user).toBe("553188887777");
+
+    // Baileys later populates name via creds update
+    mockSock.user = { id: "553188887777:11@s.whatsapp.net", name: "Alice" };
+
+    await processEvents({
+      "creds.update": {},
+    });
+
+    expect(connectionState.user).toBe("Alice");
+  });
+
   it('promotes to "connected" when messaging-history.set fires with isLatest: true', async () => {
     const { processEvents, connectionState } = await initConnection();
 

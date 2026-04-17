@@ -12,6 +12,18 @@ import { handleConnectionClose } from "./connection-handler.js";
 import type { BaileysClientConfig, ConnectionState, SocketState, WhatsAppSocket } from "./types.js";
 import { generateAsciiQR } from "./utils.js";
 
+/**
+ * Prefer the display name when Baileys has populated it; otherwise fall back
+ * to the phone-number portion of the JID (stripping the `:device` suffix and
+ * `@s.whatsapp.net`). Prevents "Linked as ?" style UI regressions when callers
+ * render `connectionState.user` on first pair, where `sock.user.name` arrives
+ * a few events after `connection.open`.
+ */
+function deriveUserDisplay(user: { id: string; name?: string | null }): string {
+  if (user.name) return user.name;
+  return user.id.split(/[@:]/)[0] ?? user.id;
+}
+
 export async function startConnection(config: BaileysClientConfig): Promise<{
   socket: WhatsAppSocket;
   connectionState: ConnectionState;
@@ -122,9 +134,9 @@ async function connectSocket(
           connectionState.status = "syncing";
           connectionState.qrCode = null;
           connectionState.qrAscii = null;
-          connectionState.user = sock.user.name ?? null;
+          connectionState.user = deriveUserDisplay(sock.user);
           connectionState.syncProgress = { chats: 0, contacts: 0, messages: 0, lastBatchAt: null };
-          logger.info(`Connection opened. WA user: ${sock.user.name}. Waiting for history sync...`);
+          logger.info(`Connection opened. WA user: ${connectionState.user}. Waiting for history sync...`);
           await hooks?.onConnected?.({ id: sock.user.id, name: sock.user.name ?? undefined });
 
           // Fallback: promote to "connected" if no history sync batches arrive
@@ -146,6 +158,12 @@ async function connectSocket(
     if (events["creds.update"] && !isLogout) {
       await saveCreds();
       logger.info("Credentials saved.");
+      // Upgrade the display name if Baileys populated sock.user.name after the
+      // initial connection.open (common on first pair: .id is present, .name
+      // arrives later via a creds update).
+      if (sock.user) {
+        connectionState.user = deriveUserDisplay(sock.user);
+      }
     }
 
     if (events["messaging-history.set"]) {
