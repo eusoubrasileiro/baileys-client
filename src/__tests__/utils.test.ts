@@ -214,4 +214,166 @@ describe("parseMessage", () => {
     expect(result!.timestamp.getTime()).toBeGreaterThanOrEqual(before - 1000);
     expect(result!.timestamp.getTime()).toBeLessThanOrEqual(after + 1000);
   });
+
+  it("parses viewOnce image with caption correctly", () => {
+    const result = parseMessage({
+      message: {
+        viewOnceMessage: {
+          message: {
+            imageMessage: {
+              caption: "view once photo",
+              mimetype: "image/jpeg",
+              mediaKey: new Uint8Array([1, 2, 3]),
+            },
+          },
+        },
+      },
+      key: {
+        id: "msg-vo-img",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe("[Image] view once photo");
+    expect(result!.media_type).toBe("image");
+    expect(result!.mimetype).toBe("image/jpeg");
+  });
+
+  it("parses viewOnce audio (ptt) correctly", () => {
+    const result = parseMessage({
+      message: {
+        viewOnceMessage: {
+          message: {
+            audioMessage: {
+              mimetype: "audio/ogg; codecs=opus",
+              ptt: true,
+            },
+          },
+        },
+      },
+      key: {
+        id: "msg-vo-ptt",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe("[Audio]");
+    expect(result!.media_type).toBe("ptt");
+  });
+
+  it("parses ephemeral text message correctly", () => {
+    const result = parseMessage({
+      message: {
+        ephemeralMessage: {
+          message: {
+            conversation: "disappearing text",
+          },
+        },
+      },
+      key: {
+        id: "msg-eph",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe("disappearing text");
+    expect(result!.media_type).toBeNull();
+  });
+
+  it("parses viewOnceMessageV2 image correctly", () => {
+    const result = parseMessage({
+      message: {
+        viewOnceMessageV2: {
+          message: {
+            imageMessage: {
+              caption: "v2 view once",
+              mimetype: "image/png",
+            },
+          },
+        },
+      },
+      key: {
+        id: "msg-vo2",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe("[Image] v2 view once");
+    expect(result!.media_type).toBe("image");
+  });
+
+  it("parses documentWithCaptionMessage correctly", () => {
+    const result = parseMessage({
+      message: {
+        documentWithCaptionMessage: {
+          message: {
+            documentMessage: {
+              caption: "important doc",
+              mimetype: "application/pdf",
+              fileName: "report.pdf",
+            },
+          },
+        },
+      },
+      key: {
+        id: "msg-docwc",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe("[Document] important doc");
+    expect(result!.media_type).toBe("document");
+  });
+
+  it("returns correct media info for viewOnce media via extractMediaInfo", () => {
+    const result = parseMessage({
+      message: {
+        viewOnceMessage: {
+          message: {
+            imageMessage: {
+              caption: "media test",
+              mimetype: "image/jpeg",
+              mediaKey: new Uint8Array([10, 20, 30]),
+              directPath: "/enc/path",
+              url: "https://mmg.whatsapp.net/img",
+              fileLength: 54321,
+              fileSha256: new Uint8Array([40, 50, 60]),
+              fileEncSha256: new Uint8Array([70, 80, 90]),
+            },
+          },
+        },
+      },
+      key: {
+        id: "msg-vo-media",
+        remoteJid: "5511999887766@s.whatsapp.net",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.media_type).toBe("image");
+    expect(result!.mimetype).toBe("image/jpeg");
+    expect(result!.media_key).not.toBeNull();
+    expect(result!.direct_path).toBe("/enc/path");
+    expect(result!.media_url).toBe("https://mmg.whatsapp.net/img");
+    expect(result!.file_length).toBe(54321);
+    expect(result!.file_sha256).not.toBeNull();
+    expect(result!.file_enc_sha256).not.toBeNull();
+  });
 });

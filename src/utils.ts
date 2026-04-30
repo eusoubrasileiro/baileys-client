@@ -1,4 +1,9 @@
-import { isJidGroup, jidNormalizedUser, type WAMessage } from "@whiskeysockets/baileys";
+import {
+  isJidGroup,
+  jidNormalizedUser,
+  normalizeMessageContent,
+  type WAMessage,
+} from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 import type { MediaInfo, ParsedMessage } from "./types.js";
 
@@ -91,41 +96,44 @@ export function extractMediaInfo(message: WAMessage["message"]): MediaInfo | nul
 // --- Message parsing ---
 
 export function parseMessage(msg: WAMessage): ParsedMessage | null {
-  if (!msg.message || !msg.key || !msg.key.remoteJid) {
+  if (!msg.message || !msg.key?.remoteJid) {
     return null;
   }
 
+  const message = normalizeMessageContent(msg.message);
+  if (!message) return null;
+
   let content: string | null = null;
 
-  if (msg.message.conversation) {
-    content = msg.message.conversation;
-  } else if (msg.message.extendedTextMessage?.text) {
-    content = msg.message.extendedTextMessage.text;
-  } else if (msg.message.imageMessage?.caption) {
-    content = `[Image] ${msg.message.imageMessage.caption}`;
-  } else if (msg.message.videoMessage?.caption) {
-    content = `[Video] ${msg.message.videoMessage.caption}`;
-  } else if (msg.message.documentMessage?.caption || msg.message.documentMessage?.fileName) {
+  if (message.conversation) {
+    content = message.conversation;
+  } else if (message.extendedTextMessage?.text) {
+    content = message.extendedTextMessage.text;
+  } else if (message.imageMessage?.caption) {
+    content = `[Image] ${message.imageMessage.caption}`;
+  } else if (message.videoMessage?.caption) {
+    content = `[Video] ${message.videoMessage.caption}`;
+  } else if (message.documentMessage?.caption || message.documentMessage?.fileName) {
     content = `[Document] ${
-      msg.message.documentMessage.caption || msg.message.documentMessage.fileName || ""
+      message.documentMessage.caption || message.documentMessage.fileName || ""
     }`;
-  } else if (msg.message.audioMessage) {
+  } else if (message.audioMessage) {
     content = "[Audio]";
-  } else if (msg.message.stickerMessage) {
+  } else if (message.stickerMessage) {
     content = "[Sticker]";
-  } else if (msg.message.locationMessage?.address) {
-    content = `[Location] ${msg.message.locationMessage.address}`;
-  } else if (msg.message.contactMessage?.displayName) {
-    content = `[Contact] ${msg.message.contactMessage.displayName}`;
-  } else if (msg.message.pollCreationMessage?.name) {
-    content = `[Poll] ${msg.message.pollCreationMessage.name}`;
+  } else if (message.locationMessage?.address) {
+    content = `[Location] ${message.locationMessage.address}`;
+  } else if (message.contactMessage?.displayName) {
+    content = `[Contact] ${message.contactMessage.displayName}`;
+  } else if (message.pollCreationMessage?.name) {
+    content = `[Poll] ${message.pollCreationMessage.name}`;
   }
 
   if (!content) {
-    if (msg.message.imageMessage) content = "[Image]";
-    else if (msg.message.videoMessage) content = "[Video]";
-    else if (msg.message.documentMessage) content = "[Document]";
-    else if (msg.message.audioMessage) content = "[Audio]";
+    if (message.imageMessage) content = "[Image]";
+    else if (message.videoMessage) content = "[Video]";
+    else if (message.documentMessage) content = "[Document]";
+    else if (message.audioMessage) content = "[Audio]";
     else return null;
   }
 
@@ -145,7 +153,7 @@ export function parseMessage(msg: WAMessage): ParsedMessage | null {
     senderJid = null;
   }
 
-  const mediaInfo = extractMediaInfo(msg.message);
+  const mediaInfo = extractMediaInfo(message);
 
   return {
     id: msg.key.id!,
