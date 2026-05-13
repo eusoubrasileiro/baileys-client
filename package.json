@@ -36,6 +36,9 @@
   "engines": {
     "node": ">=20"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@whiskeysockets/baileys", "esbuild", "protobufjs", "sharp"]
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AmiticIA-AutoSys/baileys-client.git"
