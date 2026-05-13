@@ -65,6 +65,7 @@ async function connectSocket(
     },
     generateHighQualityLinkPreview: config.generateHighQualityLinkPreview ?? true,
     shouldIgnoreJid: config.shouldIgnoreJid ?? ((jid) => isJidGroup(jid)),
+    syncFullHistory: config.syncFullHistory ?? true,
   });
 
   socketState.socket = sock;

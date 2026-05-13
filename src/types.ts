@@ -102,6 +102,7 @@ export type BaileysClientConfig = {
   hooks?: BaileysClientHooks;
   shouldIgnoreJid?: (jid: string) => boolean;
   generateHighQualityLinkPreview?: boolean;
+  syncFullHistory?: boolean;
   /** Inactivity timeout (ms) — resets on each sync batch. Default: 60000. */
   historySyncInactivityTimeoutMs?: number;
   /** @deprecated Use historySyncInactivityTimeoutMs instead. */

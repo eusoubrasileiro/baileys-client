@@ -376,6 +376,23 @@ describe("connection event processing", () => {
     expect(connectionState.syncProgress.messages).toBe(4);
   });
 
+  it("passes syncFullHistory: true to makeWASocket by default", async () => {
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    expect(makeWASocket).toHaveBeenCalledWith(
+      expect.objectContaining({ syncFullHistory: true }),
+    );
+  });
+
+  it("passes syncFullHistory: false when explicitly configured", async () => {
+    config.syncFullHistory = false;
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    expect(makeWASocket).toHaveBeenCalledWith(
+      expect.objectContaining({ syncFullHistory: false }),
+    );
+  });
+
   it("resets sync progress on new connection", async () => {
     const { processEvents, connectionState } = await initConnection();
 
