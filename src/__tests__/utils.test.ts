@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractMediaInfo,
   isGroupJid,
+  isLidJid,
   mimetypeToExtension,
   normalizeJid,
   parseMessage,
@@ -32,6 +33,20 @@ describe("isGroupJid", () => {
 
   it("returns false for individual JIDs", () => {
     expect(isGroupJid("5511999887766@s.whatsapp.net")).toBe(false);
+  });
+});
+
+describe("isLidJid", () => {
+  it("returns true for @lid JIDs", () => {
+    expect(isLidJid("11122233344455@lid")).toBe(true);
+  });
+
+  it("returns false for phone-number JIDs", () => {
+    expect(isLidJid("5511999887766@s.whatsapp.net")).toBe(false);
+  });
+
+  it("returns false for group JIDs", () => {
+    expect(isLidJid("123456789@g.us")).toBe(false);
   });
 });
 
@@ -115,6 +130,54 @@ describe("parseMessage", () => {
     expect(result!.chat_jid).toBe("5511999887766@s.whatsapp.net");
     expect(result!.is_from_me).toBe(false);
     expect(result!.sender).toBe("5511999887766@s.whatsapp.net");
+  });
+
+  it("leaves LID fields null when the key has no alt identifiers", () => {
+    const result = parseMessage({
+      message: { conversation: "Hello" },
+      key: { id: "msg-1", remoteJid: "5511999887766@s.whatsapp.net", fromMe: false },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result!.chat_jid_alt).toBeNull();
+    expect(result!.sender_alt).toBeNull();
+    expect(result!.addressing_mode).toBeNull();
+  });
+
+  it("populates chat_jid_alt and addressing_mode from a LID-addressed key", () => {
+    const result = parseMessage({
+      message: { conversation: "Hello from LID" },
+      key: {
+        id: "msg-lid",
+        remoteJid: "11122233344455@lid",
+        remoteJidAlt: "555177776666@s.whatsapp.net",
+        addressingMode: "lid",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result!.chat_jid).toBe("11122233344455@lid");
+    expect(result!.chat_jid_alt).toBe("555177776666@s.whatsapp.net");
+    expect(result!.addressing_mode).toBe("lid");
+  });
+
+  it("populates sender_alt for a group message with participantAlt", () => {
+    const result = parseMessage({
+      message: { conversation: "group msg" },
+      key: {
+        id: "msg-grp",
+        remoteJid: "123456789@g.us",
+        participant: "11122233344455@lid",
+        participantAlt: "555177776666:3@s.whatsapp.net",
+        addressingMode: "lid",
+        fromMe: false,
+      },
+      messageTimestamp: 1700000000,
+    } as any);
+
+    expect(result!.sender).toBe("11122233344455@lid");
+    expect(result!.sender_alt).toBe("555177776666@s.whatsapp.net");
   });
 
   it("parses extendedTextMessage", () => {

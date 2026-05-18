@@ -52,6 +52,17 @@ export type ParsedMessage = {
   id: string;
   chat_jid: string;
   sender: string | null;
+  /**
+   * The twin JID for `chat_jid` — its `@lid` counterpart if `chat_jid` is a
+   * phone-number JID, or vice versa. Sourced from `key.remoteJidAlt`. Lets
+   * consumers reconcile the LID↔PN identity pair. `null` when WhatsApp did not
+   * supply it.
+   */
+  chat_jid_alt?: string | null;
+  /** The twin JID for `sender`, sourced from `key.participantAlt`. */
+  sender_alt?: string | null;
+  /** Which JID type WhatsApp prefers for this chat: "pn" or "lid". */
+  addressing_mode?: "pn" | "lid" | null;
   content: string;
   timestamp: Date;
   is_from_me: boolean;
@@ -94,6 +105,22 @@ export type BaileysClientHooks = {
   onGroupsSync?: (
     groups: Record<string, import("@whiskeysockets/baileys").GroupMetadata>,
   ) => void | Promise<void>;
+  /**
+   * Fired when WhatsApp delivers a new LID↔phone-number mapping. Best-effort:
+   * WhatsApp does not always emit this, so consumers should also reconcile
+   * from `ParsedMessage.chat_jid_alt`.
+   */
+  onLidMapping?: (mapping: { lid: string; pn: string }) => void | Promise<void>;
+};
+
+/**
+ * Narrow, typed surface over the socket's Baileys LID mapping store. Resolve a
+ * phone-number JID to its LID (`getLIDForPN` — reliable) or the reverse
+ * (`getPNForLID` — best-effort; WhatsApp does not always know the PN).
+ */
+export type LidResolver = {
+  getPNForLID: (lid: string) => Promise<string | null>;
+  getLIDForPN: (pn: string) => Promise<string | null>;
 };
 
 export type BaileysClientConfig = {

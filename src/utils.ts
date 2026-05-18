@@ -22,6 +22,11 @@ export function isGroupJid(jid: string): boolean {
   return isJidGroup(jid) ?? false;
 }
 
+/** True for privacy LID JIDs (`<id>@lid`), false for phone-number/group JIDs. */
+export function isLidJid(jid: string): boolean {
+  return jid.endsWith("@lid");
+}
+
 // --- QR code ---
 
 export function generateAsciiQR(data: string): Promise<string> {
@@ -155,10 +160,15 @@ export function parseMessage(msg: WAMessage): ParsedMessage | null {
 
   const mediaInfo = extractMediaInfo(message);
 
+  const addressingMode = msg.key.addressingMode;
+
   return {
     id: msg.key.id!,
     chat_jid: msg.key.remoteJid,
     sender: senderJid ? jidNormalizedUser(senderJid) : null,
+    chat_jid_alt: msg.key.remoteJidAlt ?? null,
+    sender_alt: msg.key.participantAlt ? jidNormalizedUser(msg.key.participantAlt) : null,
+    addressing_mode: addressingMode === "pn" || addressingMode === "lid" ? addressingMode : null,
     content,
     timestamp,
     is_from_me: msg.key.fromMe ?? false,

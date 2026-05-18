@@ -137,7 +137,9 @@ async function connectSocket(
           connectionState.qrAscii = null;
           connectionState.user = deriveUserDisplay(sock.user);
           connectionState.syncProgress = { chats: 0, contacts: 0, messages: 0, lastBatchAt: null };
-          logger.info(`Connection opened. WA user: ${connectionState.user}. Waiting for history sync...`);
+          logger.info(
+            `Connection opened. WA user: ${connectionState.user}. Waiting for history sync...`,
+          );
           await hooks?.onConnected?.({ id: sock.user.id, name: sock.user.name ?? undefined });
 
           // Fallback: promote to "connected" if no history sync batches arrive
@@ -234,6 +236,12 @@ async function connectSocket(
     if (events["chats.update"]) {
       logger.info({ count: events["chats.update"].length }, "Received chats.update event");
       await hooks?.onChatsUpdate?.(events["chats.update"]);
+    }
+
+    if (events["lid-mapping.update"]) {
+      const mapping = events["lid-mapping.update"];
+      logger.info({ mapping }, "Received lid-mapping.update event");
+      await hooks?.onLidMapping?.(mapping);
     }
   });
 

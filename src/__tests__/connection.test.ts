@@ -289,6 +289,24 @@ describe("connection event processing", () => {
     expect(onHistorySync).toHaveBeenCalledWith(expect.objectContaining({ isLatest: true }));
   });
 
+  it("forwards lid-mapping.update events to the onLidMapping hook", async () => {
+    const onLidMapping = vi.fn();
+    config.hooks = { ...config.hooks, onLidMapping };
+    const { processEvents } = await initConnection();
+
+    await processEvents({
+      "lid-mapping.update": {
+        lid: "11122233344455@lid",
+        pn: "555177776666@s.whatsapp.net",
+      },
+    });
+
+    expect(onLidMapping).toHaveBeenCalledWith({
+      lid: "11122233344455@lid",
+      pn: "555177776666@s.whatsapp.net",
+    });
+  });
+
   it("resets inactivity timeout on each history sync batch", async () => {
     config.historySyncInactivityTimeoutMs = 5_000;
     const onReady = vi.fn();
@@ -379,18 +397,14 @@ describe("connection event processing", () => {
   it("passes syncFullHistory: true to makeWASocket by default", async () => {
     const { makeWASocket } = await import("@whiskeysockets/baileys");
     await initConnection();
-    expect(makeWASocket).toHaveBeenCalledWith(
-      expect.objectContaining({ syncFullHistory: true }),
-    );
+    expect(makeWASocket).toHaveBeenCalledWith(expect.objectContaining({ syncFullHistory: true }));
   });
 
   it("passes syncFullHistory: false when explicitly configured", async () => {
     config.syncFullHistory = false;
     const { makeWASocket } = await import("@whiskeysockets/baileys");
     await initConnection();
-    expect(makeWASocket).toHaveBeenCalledWith(
-      expect.objectContaining({ syncFullHistory: false }),
-    );
+    expect(makeWASocket).toHaveBeenCalledWith(expect.objectContaining({ syncFullHistory: false }));
   });
 
   it("resets sync progress on new connection", async () => {

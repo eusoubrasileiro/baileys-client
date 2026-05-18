@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import pRetry, { AbortError } from "p-retry";
+import { describe, expect, it, vi } from "vitest";
 
 // Contract tests pinning the p-retry API consumed by src/connection-handler.ts.
 // Must stay green across p-retry 7 → 8.
@@ -40,9 +40,7 @@ describe("p-retry contract", () => {
 
   it("AbortError short-circuits retries", async () => {
     const fn = vi.fn().mockRejectedValue(new AbortError("abort"));
-    await expect(
-      pRetry(fn, { retries: 5, minTimeout: 1, maxTimeout: 2 }),
-    ).rejects.toThrow("abort");
+    await expect(pRetry(fn, { retries: 5, minTimeout: 1, maxTimeout: 2 })).rejects.toThrow("abort");
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
@@ -72,5 +70,4 @@ describe("p-retry contract", () => {
     expect(secondArg.attemptNumber).toBe(2);
     expect(secondArg.retriesLeft).toBeLessThan(firstArg.retriesLeft);
   });
-
 });

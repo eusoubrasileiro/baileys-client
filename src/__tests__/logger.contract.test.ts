@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import pino from "pino";
+import { describe, expect, it } from "vitest";
 
 // Contract tests pinning the pino API consumed by baileys-client.
 // Must stay green across pino 9 → 10.

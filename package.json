@@ -1,6 +1,6 @@
 {
   "name": "@amiticia/baileys-client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -37,12 +37,18 @@
     "node": ">=20"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@whiskeysockets/baileys", "esbuild", "protobufjs", "sharp"]
+    "onlyBuiltDependencies": [
+      "@whiskeysockets/baileys",
+      "esbuild",
+      "protobufjs",
+      "sharp"
+    ]
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AmiticIA-AutoSys/baileys-client.git"
   },
   "author": "AmiticIA-AutoSys",
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.2"
 }

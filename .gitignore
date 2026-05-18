@@ -2,5 +2,6 @@ node_modules/
 dist/
 auth_info/
 *.log
+*-logs.txt
 coverage/
 .DS_Store

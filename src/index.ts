@@ -1,5 +1,6 @@
 export { startConnection } from "./connection.js";
 export { handleConnectionClose } from "./connection-handler.js";
+export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
@@ -11,6 +12,7 @@ export type {
   ConnectionStatus,
   Contact,
   DownloadMediaParams,
+  LidResolver,
   MediaInfo,
   MediaType,
   ParsedMessage,
@@ -23,6 +25,7 @@ export {
   extractMediaInfo,
   generateAsciiQR,
   isGroupJid,
+  isLidJid,
   mimetypeToExtension,
   normalizeJid,
   parseMessage,
