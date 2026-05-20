@@ -47,17 +47,22 @@ export async function sendMediaMessage(
     const normalizedJid = jidNormalizedUser(jid);
     let messageContent: any = {};
 
-    if (media.type === "image") messageContent = { image: media.buffer, caption: media.caption };
-    else if (media.type === "video")
+    if (media.type === "image") {
+      messageContent = { image: media.buffer, caption: media.caption };
+      if (media.mimetype) messageContent.mimetype = media.mimetype;
+    } else if (media.type === "video") {
       messageContent = { video: media.buffer, caption: media.caption };
-    else if (media.type === "audio")
+      if (media.mimetype) messageContent.mimetype = media.mimetype;
+    } else if (media.type === "audio") {
       messageContent = { audio: media.buffer, mimetype: media.mimetype ?? "audio/mp4" };
-    else if (media.type === "document")
+    } else if (media.type === "document") {
       messageContent = {
         document: media.buffer,
         caption: media.caption,
         fileName: media.fileName,
       };
+      if (media.mimetype) messageContent.mimetype = media.mimetype;
+    }
 
     const result = await socket.sendMessage(normalizedJid, messageContent);
     return { success: true, messageId: result?.key.id ?? undefined };

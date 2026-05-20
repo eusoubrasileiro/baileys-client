@@ -85,6 +85,24 @@ describe("sendMediaMessage", () => {
     });
   });
 
+  it("forwards mimetype on image when provided", async () => {
+    const socket = createMockSocket();
+    const buffer = Buffer.from("fake-image-data");
+
+    await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer, type: "image", caption: "A photo", mimetype: "image/png" },
+      mockLogger,
+    );
+
+    expect(socket.sendMessage).toHaveBeenCalledWith("5511999999999@s.whatsapp.net", {
+      image: buffer,
+      caption: "A photo",
+      mimetype: "image/png",
+    });
+  });
+
   it("sends a document with fileName", async () => {
     const socket = createMockSocket();
     const buffer = Buffer.from("fake-doc");
@@ -101,6 +119,43 @@ describe("sendMediaMessage", () => {
       document: buffer,
       caption: "My doc",
       fileName: "report.pdf",
+    });
+  });
+
+  it("forwards mimetype on document when provided", async () => {
+    const socket = createMockSocket();
+    const buffer = Buffer.from("fake-doc");
+
+    await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer, type: "document", fileName: "report.pdf", mimetype: "application/pdf" },
+      mockLogger,
+    );
+
+    expect(socket.sendMessage).toHaveBeenCalledWith("5511999999999@s.whatsapp.net", {
+      document: buffer,
+      caption: undefined,
+      fileName: "report.pdf",
+      mimetype: "application/pdf",
+    });
+  });
+
+  it("forwards mimetype on video when provided", async () => {
+    const socket = createMockSocket();
+    const buffer = Buffer.from("fake-video");
+
+    await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer, type: "video", caption: "clip", mimetype: "video/mp4" },
+      mockLogger,
+    );
+
+    expect(socket.sendMessage).toHaveBeenCalledWith("5511999999999@s.whatsapp.net", {
+      video: buffer,
+      caption: "clip",
+      mimetype: "video/mp4",
     });
   });
 
