@@ -26,11 +26,17 @@ Always run `pnpm check` before committing.
 | File | Purpose |
 |------|---------|
 | `src/types.ts` | All types and the `BaileysClientHooks` / `BaileysClientConfig` interfaces |
-| `src/connection.ts` | `startConnection()` — socket creation, event wiring, reconnection |
-| `src/connection-handler.ts` | `handleConnectionClose()` — retry/logout logic (DI pattern) |
-| `src/media.ts` | `downloadMedia()` — media download with automatic CDN URL refresh |
-| `src/sender.ts` | `sendTextMessage()`, `sendMediaMessage()` — take socket as param |
-| `src/utils.ts` | JID helpers, QR generation, media extraction, message parsing |
+| `src/connection.ts` | `startConnection()` — socket creation; wires `createEventDispatcher` to `sock.ev.process` |
+| `src/event-dispatcher.ts` | `createEventDispatcher()` — per-event named handlers, sync-timer lifecycle, seam for unit tests |
+| `src/connection-handler.ts` | `handleConnectionClose()` — retry/logout/giveup decision routed through `ReconnectionStrategy` |
+| `src/reconnection-strategy.ts` | `defaultReconnectionStrategy()` + `ReconnectionStrategy` interface — retry policy seam |
+| `src/media.ts` | `downloadMedia()` — media download; delegates CDN-refresh retry to `MediaRefreshAdapter` |
+| `src/media-refresh.ts` | `defaultMediaRefreshAdapter()` + `MediaRefreshAdapter` interface — CDN-refresh seam |
+| `src/sender.ts` | `sendTextMessage()`, `sendMediaMessage()` — populate `errorKind` via `classifySenderError` on failure |
+| `src/sender-errors.ts` | `classifySenderError()` — maps thrown errors to `transient` / `permanent` / `unknown` |
+| `src/message-content.ts` | `extractMessageContent()` — polymorphic Baileys envelope → preview-string registry |
+| `src/utils.ts` | JID helpers, QR generation, media extraction, `parseMessage` (orchestrator) |
+| `src/lid.ts` | `makeLidResolver()` — typed surface over Baileys LID mapping store |
 | `src/index.ts` | Barrel export |
 
 ## Conventions
@@ -39,4 +45,12 @@ Always run `pnpm check` before committing.
 - Biome for linting and formatting (double quotes, trailing commas, 100-char line width)
 - No default exports — always named exports
 - Functions take dependencies as parameters, not from module-level singletons
-- Sender functions return `{ success, messageId?, error? }` — never throw
+- Sender functions return `{ success, messageId?, error?, errorKind? }` — never throw
+
+## Multi-agent dispatch harness
+
+See `scripts/dispatch-worktree.sh` (`pnpm dispatch <slug>`). Library-only
+variant of the standards harness — no Postgres, no ports. Pre-write a plan
+at `.claude/plans/<slug>.md`; dispatch materialises an isolated worktree at
+`.claude/worktrees/<slug>` on branch `agent/<slug>` and stamps the agent
+contract as `.claude/AGENT.md`. Cleanup: `pnpm dispatch:cleanup --slug <slug>`.
