@@ -1,12 +1,7 @@
 import { jidNormalizedUser } from "@whiskeysockets/baileys";
 import type { Logger } from "pino";
-import type { WhatsAppSocket } from "./types.js";
-
-type SendResult = {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-};
+import { classifySenderError } from "./sender-errors.js";
+import type { SendResult, WhatsAppSocket } from "./types.js";
 
 export async function sendTextMessage(
   socket: WhatsAppSocket,
@@ -15,7 +10,11 @@ export async function sendTextMessage(
   logger: Logger,
 ): Promise<SendResult> {
   if (!socket.user) {
-    return { success: false, error: "WhatsApp socket not connected" };
+    return {
+      success: false,
+      error: "WhatsApp socket not connected",
+      errorKind: "permanent",
+    };
   }
   try {
     const normalizedJid = jidNormalizedUser(jid);
@@ -24,7 +23,7 @@ export async function sendTextMessage(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error({ err: error, recipientJid: jid }, "Failed to send message");
-    return { success: false, error: message };
+    return { success: false, error: message, errorKind: classifySenderError(error) };
   }
 }
 
@@ -41,7 +40,11 @@ export async function sendMediaMessage(
   logger: Logger,
 ): Promise<SendResult> {
   if (!socket.user) {
-    return { success: false, error: "WhatsApp socket not connected" };
+    return {
+      success: false,
+      error: "WhatsApp socket not connected",
+      errorKind: "permanent",
+    };
   }
   try {
     const normalizedJid = jidNormalizedUser(jid);
@@ -69,6 +72,6 @@ export async function sendMediaMessage(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error({ err: error, recipientJid: jid }, "Failed to send media");
-    return { success: false, error: message };
+    return { success: false, error: message, errorKind: classifySenderError(error) };
   }
 }

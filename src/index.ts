@@ -6,6 +6,7 @@ export { downloadMedia } from "./media.js";
 export { defaultMediaRefreshAdapter } from "./media-refresh.js";
 export { extractMessageContent } from "./message-content.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
+export { classifySenderError } from "./sender-errors.js";
 export type {
   BaileysClientConfig,
   BaileysClientHooks,
@@ -24,6 +25,8 @@ export type {
   MessageContent,
   MessageContentExtractor,
   ParsedMessage,
+  SenderErrorKind,
+  SendResult,
   SocketState,
   WAMessage,
   WAMessageUpdate,

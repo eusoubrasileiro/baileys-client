@@ -211,6 +211,24 @@ export type MediaRefreshAdapter = {
 
 export type { MessageContent, MessageContentExtractor } from "./message-content.js";
 
+/**
+ * Coarse classification of an error thrown by `socket.sendMessage`. Surfaced
+ * on `SendResult.errorKind` so callers can pick a retry policy without sniffing
+ * error-message strings. See `sender-errors.ts` for the matching rules.
+ */
+export type SenderErrorKind = "transient" | "permanent" | "unknown";
+
+/**
+ * Public shape of the value returned by `sendTextMessage` / `sendMediaMessage`.
+ * `errorKind` is populated only on failure; `success === true` results omit it.
+ */
+export type SendResult = {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  errorKind?: SenderErrorKind;
+};
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;
