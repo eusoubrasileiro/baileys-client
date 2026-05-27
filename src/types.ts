@@ -209,6 +209,8 @@ export type MediaRefreshAdapter = {
   refreshAndRetry: (message: unknown, ctx: MediaRefreshContext) => Promise<Buffer>;
 };
 
+export type { MessageContent, MessageContentExtractor } from "./message-content.js";
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;

@@ -5,6 +5,7 @@ import {
   type WAMessage,
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
+import { extractMessageContent } from "./message-content.js";
 import type { MediaInfo, ParsedMessage } from "./types.js";
 
 // --- JID helpers ---
@@ -108,39 +109,8 @@ export function parseMessage(msg: WAMessage): ParsedMessage | null {
   const message = normalizeMessageContent(msg.message);
   if (!message) return null;
 
-  let content: string | null = null;
-
-  if (message.conversation) {
-    content = message.conversation;
-  } else if (message.extendedTextMessage?.text) {
-    content = message.extendedTextMessage.text;
-  } else if (message.imageMessage?.caption) {
-    content = `[Image] ${message.imageMessage.caption}`;
-  } else if (message.videoMessage?.caption) {
-    content = `[Video] ${message.videoMessage.caption}`;
-  } else if (message.documentMessage?.caption || message.documentMessage?.fileName) {
-    content = `[Document] ${
-      message.documentMessage.caption || message.documentMessage.fileName || ""
-    }`;
-  } else if (message.audioMessage) {
-    content = "[Audio]";
-  } else if (message.stickerMessage) {
-    content = "[Sticker]";
-  } else if (message.locationMessage?.address) {
-    content = `[Location] ${message.locationMessage.address}`;
-  } else if (message.contactMessage?.displayName) {
-    content = `[Contact] ${message.contactMessage.displayName}`;
-  } else if (message.pollCreationMessage?.name) {
-    content = `[Poll] ${message.pollCreationMessage.name}`;
-  }
-
-  if (!content) {
-    if (message.imageMessage) content = "[Image]";
-    else if (message.videoMessage) content = "[Video]";
-    else if (message.documentMessage) content = "[Document]";
-    else if (message.audioMessage) content = "[Audio]";
-    else return null;
-  }
+  const content = extractMessageContent(message);
+  if (!content) return null;
 
   let timestampSeconds: number;
   if (msg.messageTimestamp != null) {

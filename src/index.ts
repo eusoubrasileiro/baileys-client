@@ -4,6 +4,7 @@ export { createEventDispatcher } from "./event-dispatcher.js";
 export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
 export { defaultMediaRefreshAdapter } from "./media-refresh.js";
+export { extractMessageContent } from "./message-content.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
   BaileysClientConfig,
@@ -20,6 +21,8 @@ export type {
   MediaRefreshAdapter,
   MediaRefreshContext,
   MediaType,
+  MessageContent,
+  MessageContentExtractor,
   ParsedMessage,
   SocketState,
   WAMessage,
