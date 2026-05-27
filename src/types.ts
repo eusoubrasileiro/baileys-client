@@ -148,6 +148,8 @@ export type DownloadMediaParams = {
   fromMe: boolean;
 };
 
+export type { MessageContent, MessageContentExtractor } from "./message-content.js";
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;

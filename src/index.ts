@@ -2,6 +2,7 @@ export { startConnection } from "./connection.js";
 export { handleConnectionClose } from "./connection-handler.js";
 export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
+export { extractMessageContent } from "./message-content.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
   BaileysClientConfig,
@@ -15,6 +16,8 @@ export type {
   LidResolver,
   MediaInfo,
   MediaType,
+  MessageContent,
+  MessageContentExtractor,
   ParsedMessage,
   SocketState,
   WAMessage,
