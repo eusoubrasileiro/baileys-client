@@ -13,7 +13,7 @@ vi.mock("@whiskeysockets/baileys", () => ({
 }));
 
 import { downloadMedia } from "../media.js";
-import type { DownloadMediaParams, MediaType } from "../types.js";
+import type { DownloadMediaParams, MediaRefreshAdapter, MediaType } from "../types.js";
 
 function createMockSocket(overrides: any = {}) {
   return {
@@ -143,5 +143,44 @@ describe("downloadMedia", () => {
 
     expect(socket.updateMediaMessage).not.toHaveBeenCalled();
     expect(mockDownloadMediaMessage).toHaveBeenCalledOnce();
+  });
+
+  it("delegates retry to a custom MediaRefreshAdapter when supplied", async () => {
+    const socket = createMockSocket();
+    const downloadError = new Error("ETIMEDOUT");
+    mockDownloadMediaMessage.mockRejectedValueOnce(downloadError);
+
+    const customAdapter: MediaRefreshAdapter = {
+      refreshAndRetry: vi.fn().mockResolvedValue(Buffer.from("from-adapter")),
+    };
+
+    const result = await downloadMedia(socket, baseParams, mockLogger, customAdapter);
+
+    expect(result).toEqual(Buffer.from("from-adapter"));
+    // The default inline retry path must NOT fire — adapter owns it.
+    expect(socket.updateMediaMessage).not.toHaveBeenCalled();
+    expect(customAdapter.refreshAndRetry).toHaveBeenCalledOnce();
+    const [msg, ctx] = (customAdapter.refreshAndRetry as any).mock.calls[0];
+    expect(msg.key.id).toBe(baseParams.messageId);
+    expect(ctx).toMatchObject({
+      socket,
+      logger: mockLogger,
+      messageId: baseParams.messageId,
+      originalError: downloadError,
+    });
+  });
+
+  it("does not invoke the custom adapter on a successful first download", async () => {
+    const socket = createMockSocket();
+    mockDownloadMediaMessage.mockResolvedValue(Buffer.from("ok"));
+
+    const customAdapter: MediaRefreshAdapter = {
+      refreshAndRetry: vi.fn(),
+    };
+
+    const result = await downloadMedia(socket, baseParams, mockLogger, customAdapter);
+
+    expect(result).toEqual(Buffer.from("ok"));
+    expect(customAdapter.refreshAndRetry).not.toHaveBeenCalled();
   });
 });
