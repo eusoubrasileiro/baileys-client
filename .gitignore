@@ -5,3 +5,9 @@ auth_info/
 *-logs.txt
 coverage/
 .DS_Store
+
+# Worktree dispatch harness
+.claude/worktrees/
+.claude/plans/
+.claude/AGENT.md
+.claude/PLAN.md
