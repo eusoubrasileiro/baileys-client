@@ -148,6 +148,37 @@ export type DownloadMediaParams = {
   fromMe: boolean;
 };
 
+/**
+ * Dependencies injected into `createEventDispatcher`. Each handler in the
+ * dispatcher reads its collaborators from this object — no module-level state.
+ * This is the seam that makes per-event behaviour unit-testable in isolation.
+ */
+export type EventDispatcherDeps = {
+  connectionState: ConnectionState;
+  socketState: SocketState;
+  hooks: BaileysClientHooks | undefined;
+  logger: Logger;
+  saveCreds: () => Promise<void>;
+  /**
+   * Late-bound accessor for the socket's `user` field. Baileys populates
+   * `sock.user.name` asynchronously after `connection.open`, so handlers must
+   * re-read it on each event rather than capture it at construction time.
+   */
+  getSocketUser: () => { id: string; name?: string | null } | null;
+  /**
+   * Called by the `connection===close` handler with `(statusCode, error,
+   * reason)`. The dispatcher does not know about retry policy or filesystem
+   * cleanup — those belong to `handleConnectionClose` in the host module.
+   */
+  onClose: (statusCode: number | undefined, error: Error | undefined, reason: string) => void;
+  /** Side-effect: fetch group metadata + fire `onGroupsSync`. */
+  syncGroupMetadata: () => Promise<void>;
+  /** Async ASCII QR renderer — injected so tests don't shell out. */
+  generateAsciiQRFn: (qr: string) => Promise<string>;
+  /** Inactivity timeout (ms) used when waiting for `messaging-history.set` batches. */
+  inactivityTimeoutMs: number;
+};
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;
