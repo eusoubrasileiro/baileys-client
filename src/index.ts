@@ -5,6 +5,7 @@ export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
 export { defaultMediaRefreshAdapter } from "./media-refresh.js";
 export { extractMessageContent } from "./message-content.js";
+export { defaultReconnectionStrategy } from "./reconnection-strategy.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export { classifySenderError } from "./sender-errors.js";
 export type {
@@ -25,6 +26,7 @@ export type {
   MessageContent,
   MessageContentExtractor,
   ParsedMessage,
+  ReconnectionStrategy,
   SenderErrorKind,
   SendResult,
   SocketState,
