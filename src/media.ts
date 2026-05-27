@@ -1,7 +1,13 @@
 import type { Readable } from "node:stream";
 import { downloadMediaMessage, getUrlFromDirectPath, toBuffer } from "@whiskeysockets/baileys";
 import type { Logger } from "pino";
-import type { DownloadMediaParams, MediaType, WhatsAppSocket } from "./types.js";
+import { defaultMediaRefreshAdapter } from "./media-refresh.js";
+import type {
+  DownloadMediaParams,
+  MediaRefreshAdapter,
+  MediaType,
+  WhatsAppSocket,
+} from "./types.js";
 
 function mediaTypeToMessageKey(mediaType: MediaType): string {
   switch (mediaType) {
@@ -27,14 +33,20 @@ function mediaTypeToMessageKey(mediaType: MediaType): string {
  * Download media from WhatsApp using stored metadata.
  *
  * Two layers of retry for expired CDN URLs:
- * 1. Baileys' built-in: downloadMediaMessage calls reuploadRequest on HTTP 410/404.
- * 2. Our catch-all: on any other failure (connection errors, 403, 500, etc.)
- *    we manually call socket.updateMediaMessage() and retry once.
+ * 1. Baileys' built-in: `downloadMediaMessage` calls `reuploadRequest` on
+ *    HTTP 410/404.
+ * 2. The {@link MediaRefreshAdapter} seam: on any other failure (connection
+ *    errors, 403, 500, etc.) the adapter is invoked to refresh the URL and
+ *    retry. The default adapter performs one `socket.updateMediaMessage`
+ *    call followed by a single re-download; consumers may inject a custom
+ *    adapter to add instrumentation, circuit-breakers, or alternative retry
+ *    budgets.
  */
 export async function downloadMedia(
   socket: WhatsAppSocket,
   params: DownloadMediaParams,
   logger: Logger,
+  adapter: MediaRefreshAdapter = defaultMediaRefreshAdapter(),
 ): Promise<Buffer> {
   const { mediaKey, directPath, mediaUrl, mediaType, messageId, chatJid, fromMe } = params;
   const mediaKeyBuffer = new Uint8Array(Buffer.from(mediaKey, "base64"));
@@ -51,18 +63,25 @@ export async function downloadMedia(
     },
   };
 
-  const options = { logger, reuploadRequest: socket.updateMediaMessage };
-
-  let result: Buffer | Readable;
   try {
-    result = await downloadMediaMessage(msg as any, "buffer", {}, options);
+    const result: Buffer | Readable = await downloadMediaMessage(
+      msg as any,
+      "buffer",
+      {},
+      {
+        logger,
+        reuploadRequest: socket.updateMediaMessage,
+      },
+    );
+    return Buffer.isBuffer(result) ? result : await toBuffer(result as any);
   } catch (error) {
-    // Baileys only retries on HTTP 410/404. Expired CDN URLs can also fail
-    // with connection errors or other HTTP codes — manually refresh and retry.
-    logger.info({ messageId, err: error }, "Download failed, requesting fresh URL and retrying");
-    const refreshed = await socket.updateMediaMessage(msg as any);
-    result = await downloadMediaMessage(refreshed, "buffer", {}, options);
+    // Baileys only retries on HTTP 410/404. Anything else (connection errors,
+    // 403, 500, …) lands here; delegate to the refresh adapter.
+    return adapter.refreshAndRetry(msg, {
+      socket,
+      logger,
+      messageId,
+      originalError: error,
+    });
   }
-
-  return Buffer.isBuffer(result) ? result : await toBuffer(result as any);
 }

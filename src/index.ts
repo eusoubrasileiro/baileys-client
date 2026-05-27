@@ -3,6 +3,7 @@ export { handleConnectionClose } from "./connection-handler.js";
 export { createEventDispatcher } from "./event-dispatcher.js";
 export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
+export { defaultMediaRefreshAdapter } from "./media-refresh.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
 export type {
   BaileysClientConfig,
@@ -16,6 +17,8 @@ export type {
   EventDispatcherDeps,
   LidResolver,
   MediaInfo,
+  MediaRefreshAdapter,
+  MediaRefreshContext,
   MediaType,
   ParsedMessage,
   SocketState,

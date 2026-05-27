@@ -179,6 +179,36 @@ export type EventDispatcherDeps = {
   inactivityTimeoutMs: number;
 };
 
+/**
+ * Context handed to a {@link MediaRefreshAdapter} when the initial media
+ * download fails. Carries the socket (for `updateMediaMessage` calls), the
+ * logger, the message id (for correlation), and the original error so adapters
+ * can decide whether to retry or surface custom telemetry.
+ */
+export type MediaRefreshContext = {
+  socket: WhatsAppSocket;
+  logger: Logger;
+  messageId: string;
+  originalError: unknown;
+};
+
+/**
+ * Seam for the "expired CDN URL → refresh → retry once" branch of
+ * `downloadMedia`. Consumers can supply a custom adapter to add
+ * instrumentation, circuit-breakers, or alternative retry budgets without
+ * forking the library. The default adapter
+ * ({@link import("./media-refresh.js").defaultMediaRefreshAdapter}) preserves
+ * historic behaviour: one `socket.updateMediaMessage(msg)` call followed by a
+ * single re-download.
+ *
+ * `message` is the same Baileys message object that was passed to the failed
+ * download — adapters may pass it as-is to `socket.updateMediaMessage` to
+ * obtain a fresh, signed URL.
+ */
+export type MediaRefreshAdapter = {
+  refreshAndRetry: (message: unknown, ctx: MediaRefreshContext) => Promise<Buffer>;
+};
+
 export type ConnectionCloseDeps = {
   logger: Logger;
   connectionState: ConnectionState;
