@@ -168,4 +168,44 @@ export type ConnectionCloseDeps = {
   ) => Promise<WhatsAppSocket>;
   authDir: string;
   loggedOutCode: number;
+  /**
+   * Optional reconnection strategy that owns the disconnect-reason decision
+   * (`'reconnect' | 'logout' | 'giveup'`) and the p-retry option shape. When
+   * absent, `handleConnectionClose` falls back to `defaultReconnectionStrategy`
+   * — which preserves the historical 10-retry / 1s→60s exponential policy and
+   * the `loggedOut`-only logout rule.
+   */
+  strategy?: ReconnectionStrategy;
+};
+
+/**
+ * Reconnection policy seam consumed by `handleConnectionClose`. Splits the two
+ * orthogonal questions out of the handler: *whether* to retry (the decision
+ * tree over Baileys' `DisconnectReason`) and *how long to wait* between
+ * attempts (the p-retry option shape). Lets consumers plug in custom
+ * back-off, circuit-breaker, or "give up after N minutes" policies without
+ * touching the handler itself.
+ */
+export type ReconnectionStrategy = {
+  /**
+   * Inspect the disconnect signal and decide what the handler should do.
+   * Return `'logout'` to clear credentials and reconnect, `'reconnect'` to
+   * retry without touching creds, or `'giveup'` to stop entirely.
+   */
+  decide: (
+    statusCode: number | undefined,
+    error: Error | undefined,
+  ) => "reconnect" | "logout" | "giveup";
+  /**
+   * p-retry options used by the handler when `decide` returns `'reconnect'`.
+   * `onFailedAttempt` is supplied by the handler; everything else comes from
+   * the strategy.
+   */
+  getRetryOptions: () => {
+    retries: number;
+    minTimeout: number;
+    maxTimeout: number;
+    factor: number;
+    randomize: boolean;
+  };
 };

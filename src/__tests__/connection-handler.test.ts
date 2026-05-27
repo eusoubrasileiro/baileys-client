@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleConnectionClose } from "../connection-handler.js";
-import type { ConnectionCloseDeps, ConnectionState, SocketState } from "../types.js";
+import type {
+  ConnectionCloseDeps,
+  ConnectionState,
+  ReconnectionStrategy,
+  SocketState,
+} from "../types.js";
 
 function createMockDeps(overrides: Partial<ConnectionCloseDeps> = {}): ConnectionCloseDeps {
   const connectionState: ConnectionState = {
@@ -112,5 +117,84 @@ describe("handleConnectionClose", () => {
 
     expect(deps.pRetryFn).toHaveBeenCalledTimes(1);
     expect(deps.rmSync).not.toHaveBeenCalled();
+  });
+
+  describe("with custom ReconnectionStrategy", () => {
+    it("'giveup' path skips reconnect AND skips creds clearing", () => {
+      const strategy: ReconnectionStrategy = {
+        decide: vi.fn().mockReturnValue("giveup"),
+        getRetryOptions: vi.fn().mockReturnValue({
+          retries: 10,
+          minTimeout: 1000,
+          maxTimeout: 60_000,
+          factor: 2,
+          randomize: true,
+        }),
+      };
+      const deps = createMockDeps({ strategy });
+      const error = new Error("fatal");
+
+      handleConnectionClose(500, error, "InternalError", deps);
+
+      expect(strategy.decide).toHaveBeenCalledWith(500, error);
+      expect(deps.pRetryFn).not.toHaveBeenCalled();
+      expect(deps.rmSync).not.toHaveBeenCalled();
+      expect(deps.mkdirSync).not.toHaveBeenCalled();
+      expect(deps.setTimeoutFn).not.toHaveBeenCalled();
+      expect(deps.startConnection).not.toHaveBeenCalled();
+      // Connection state still reset — that's not retry policy.
+      expect(deps.connectionState.status).toBe("disconnected");
+      expect(deps.socketState.socket).toBeNull();
+    });
+
+    it("routes 'reconnect' through strategy.getRetryOptions instead of hard-coded values", () => {
+      const strategy: ReconnectionStrategy = {
+        decide: vi.fn().mockReturnValue("reconnect"),
+        getRetryOptions: vi.fn().mockReturnValue({
+          retries: 3,
+          minTimeout: 500,
+          maxTimeout: 5_000,
+          factor: 3,
+          randomize: false,
+        }),
+      };
+      const deps = createMockDeps({ strategy });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+
+      expect(deps.pRetryFn).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          retries: 3,
+          minTimeout: 500,
+          maxTimeout: 5_000,
+          factor: 3,
+          onFailedAttempt: expect.any(Function),
+        }),
+      );
+      expect(strategy.getRetryOptions).toHaveBeenCalled();
+    });
+
+    it("routes 'logout' through strategy regardless of statusCode", () => {
+      const strategy: ReconnectionStrategy = {
+        decide: vi.fn().mockReturnValue("logout"),
+        getRetryOptions: vi.fn().mockReturnValue({
+          retries: 10,
+          minTimeout: 1000,
+          maxTimeout: 60_000,
+          factor: 2,
+          randomize: true,
+        }),
+      };
+      // statusCode is 500, not loggedOut — but the strategy says logout.
+      const deps = createMockDeps({ strategy });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+
+      expect(deps.rmSync).toHaveBeenCalled();
+      expect(deps.mkdirSync).toHaveBeenCalled();
+      expect(deps.startConnection).toHaveBeenCalledTimes(1);
+      expect(deps.pRetryFn).not.toHaveBeenCalled();
+    });
   });
 });
