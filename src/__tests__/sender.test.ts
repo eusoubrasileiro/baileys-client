@@ -47,6 +47,7 @@ describe("sendTextMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("WhatsApp socket not connected");
+    expect(result.errorKind).toBe("permanent");
   });
 
   it("returns error when sendMessage throws", async () => {
@@ -62,6 +63,54 @@ describe("sendTextMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Network error");
+    // "Network error" (space) doesn't match the hyphenated `network-error` token
+    expect(result.errorKind).toBe("unknown");
+  });
+
+  it("classifies a transient send error", async () => {
+    const socket = createMockSocket();
+    socket.sendMessage.mockRejectedValue(new Error("connection-closed"));
+
+    const result = await sendTextMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      "Hello",
+      mockLogger,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorKind).toBe("transient");
+  });
+
+  it("classifies a permanent Boom-style send error", async () => {
+    const socket = createMockSocket();
+    socket.sendMessage.mockRejectedValue(
+      Object.assign(new Error("forbidden"), { output: { statusCode: 403 } }),
+    );
+
+    const result = await sendTextMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      "Hello",
+      mockLogger,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorKind).toBe("permanent");
+  });
+
+  it("does not set errorKind on success", async () => {
+    const socket = createMockSocket();
+
+    const result = await sendTextMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      "Hello",
+      mockLogger,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.errorKind).toBeUndefined();
   });
 });
 
@@ -188,6 +237,7 @@ describe("sendMediaMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("WhatsApp socket not connected");
+    expect(result.errorKind).toBe("permanent");
   });
 
   it("returns error when sendMessage throws", async () => {
@@ -203,5 +253,38 @@ describe("sendMediaMessage", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Upload failed");
+    expect(result.errorKind).toBe("unknown");
+  });
+
+  it("classifies a transient media-send error (timeout)", async () => {
+    const socket = createMockSocket();
+    socket.sendMessage.mockRejectedValue(new Error("Request timeout"));
+
+    const result = await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer: Buffer.from("x"), type: "image" },
+      mockLogger,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorKind).toBe("transient");
+  });
+
+  it("classifies a permanent payload-too-large media error", async () => {
+    const socket = createMockSocket();
+    socket.sendMessage.mockRejectedValue(
+      Object.assign(new Error("payload-too-large"), { output: { statusCode: 413 } }),
+    );
+
+    const result = await sendMediaMessage(
+      socket,
+      "5511999999999@s.whatsapp.net",
+      { buffer: Buffer.from("x"), type: "image" },
+      mockLogger,
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.errorKind).toBe("permanent");
   });
 });

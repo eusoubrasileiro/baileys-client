@@ -3,6 +3,7 @@ export { handleConnectionClose } from "./connection-handler.js";
 export { makeLidResolver } from "./lid.js";
 export { downloadMedia } from "./media.js";
 export { sendMediaMessage, sendTextMessage } from "./sender.js";
+export { classifySenderError } from "./sender-errors.js";
 export type {
   BaileysClientConfig,
   BaileysClientHooks,
@@ -16,6 +17,8 @@ export type {
   MediaInfo,
   MediaType,
   ParsedMessage,
+  SenderErrorKind,
+  SendResult,
   SocketState,
   WAMessage,
   WAMessageUpdate,
