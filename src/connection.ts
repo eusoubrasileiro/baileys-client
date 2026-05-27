@@ -2,7 +2,6 @@ import fs from "node:fs";
 import {
   DisconnectReason,
   fetchLatestBaileysVersion,
-  isJidGroup,
   makeCacheableSignalKeyStore,
   makeWASocket,
   useMultiFileAuthState,
@@ -64,7 +63,7 @@ async function connectSocket(
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     generateHighQualityLinkPreview: config.generateHighQualityLinkPreview ?? true,
-    shouldIgnoreJid: config.shouldIgnoreJid ?? ((jid) => isJidGroup(jid)),
+    shouldIgnoreJid: config.shouldIgnoreJid,
     syncFullHistory: config.syncFullHistory ?? true,
   });
 

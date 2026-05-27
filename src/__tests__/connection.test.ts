@@ -407,6 +407,30 @@ describe("connection event processing", () => {
     expect(makeWASocket).toHaveBeenCalledWith(expect.objectContaining({ syncFullHistory: false }));
   });
 
+  it("does not install a default shouldIgnoreJid that filters @g.us groups", async () => {
+    // Regression: a previous default `(jid) => isJidGroup(jid)` silently
+    // NACKed every live group message at messages-recv.js:950, leaving
+    // group chats reachable only via history-sync backfill. After WhatsApp's
+    // LID rollout that backfill stopped covering groups, producing a total
+    // group blackout until manual re-pair. The fix is to leave shouldIgnoreJid
+    // undefined so Baileys' own default (`() => false`) takes over.
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    expect(makeWASocket).toHaveBeenCalledWith(
+      expect.objectContaining({ shouldIgnoreJid: undefined }),
+    );
+  });
+
+  it("forwards a caller-provided shouldIgnoreJid unchanged", async () => {
+    const predicate = vi.fn().mockReturnValue(false);
+    config.shouldIgnoreJid = predicate;
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    expect(makeWASocket).toHaveBeenCalledWith(
+      expect.objectContaining({ shouldIgnoreJid: predicate }),
+    );
+  });
+
   it("resets sync progress on new connection", async () => {
     const { processEvents, connectionState } = await initConnection();
 
