@@ -8,7 +8,9 @@
  * regex catalogues, no retry-budget bookkeeping — those live in the caller.
  */
 
-export type SenderErrorKind = "transient" | "permanent" | "unknown";
+import type { SenderErrorKind } from "./types.js";
+
+export type { SenderErrorKind };
 
 const PERMANENT_TOKENS = [
   "not-authorized",
@@ -18,18 +20,23 @@ const PERMANENT_TOKENS = [
   "payload-too-large",
 ];
 
+// Match the strings Baileys actually throws (lowercased here, lowercased at
+// runtime). `connection closed` and `stream errored` are what `Boom` produces
+// for codes 428/440 — the hyphenated plan-doc spellings would never match.
 const TRANSIENT_TOKENS = [
   "timeout",
   "econnreset",
   "econnrefused",
   "enotfound",
   "network-error",
-  "connection-closed",
-  "stream-conflict",
+  "connection closed",
+  "stream errored",
 ];
 
 const PERMANENT_STATUS_CODES = new Set([400, 401, 403, 404, 413]);
-const TRANSIENT_STATUS_CODES = new Set([408, 503]);
+// 408 = request timeout, 428 = Baileys "Connection Closed", 440 = Baileys
+// "Stream Errored", 503 = service unavailable.
+const TRANSIENT_STATUS_CODES = new Set([408, 428, 440, 503]);
 
 export function classifySenderError(err: unknown): SenderErrorKind {
   if (!err || typeof err !== "object") {

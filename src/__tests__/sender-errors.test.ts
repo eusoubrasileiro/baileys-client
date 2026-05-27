@@ -32,8 +32,10 @@ describe("classifySenderError", () => {
       "econnrefused",
       "ENOTFOUND",
       "network-error",
-      "connection-closed",
-      "stream-conflict",
+      // The real Boom messages thrown by Baileys for codes 428 and 440 — not
+      // hyphenated. These tests pin the runtime-observed strings.
+      "Connection Closed",
+      "Stream Errored (conflict)",
     ];
 
     for (const message of transientMessages) {
@@ -82,6 +84,20 @@ describe("classifySenderError", () => {
     it("classifies 408 (request timeout) as transient", () => {
       const err = Object.assign(new Error("request timeout"), {
         output: { statusCode: 408 },
+      });
+      expect(classifySenderError(err)).toBe("transient");
+    });
+
+    it("classifies 428 (Baileys Connection Closed) as transient", () => {
+      const err = Object.assign(new Error("Connection Closed"), {
+        output: { statusCode: 428 },
+      });
+      expect(classifySenderError(err)).toBe("transient");
+    });
+
+    it("classifies 440 (Baileys Stream Errored) as transient", () => {
+      const err = Object.assign(new Error("Stream Errored (conflict)"), {
+        output: { statusCode: 440 },
       });
       expect(classifySenderError(err)).toBe("transient");
     });

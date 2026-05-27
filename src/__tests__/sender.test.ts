@@ -69,7 +69,7 @@ describe("sendTextMessage", () => {
 
   it("classifies a transient send error", async () => {
     const socket = createMockSocket();
-    socket.sendMessage.mockRejectedValue(new Error("connection-closed"));
+    socket.sendMessage.mockRejectedValue(new Error("Connection Closed"));
 
     const result = await sendTextMessage(
       socket,
