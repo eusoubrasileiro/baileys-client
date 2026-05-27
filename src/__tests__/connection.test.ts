@@ -407,18 +407,23 @@ describe("connection event processing", () => {
     expect(makeWASocket).toHaveBeenCalledWith(expect.objectContaining({ syncFullHistory: false }));
   });
 
-  it("does not install a default shouldIgnoreJid that filters @g.us groups", async () => {
-    // Regression: a previous default `(jid) => isJidGroup(jid)` silently
-    // NACKed every live group message at messages-recv.js:950, leaving
-    // group chats reachable only via history-sync backfill. After WhatsApp's
-    // LID rollout that backfill stopped covering groups, producing a total
-    // group blackout until manual re-pair. The fix is to leave shouldIgnoreJid
-    // undefined so Baileys' own default (`() => false`) takes over.
+  it("defaults shouldIgnoreJid to a permissive (() => false) so groups flow", async () => {
+    // Two-part regression:
+    //   1. A previous default `(jid) => isJidGroup(jid)` silently NACKed every
+    //      live group message at messages-recv.js:950 — group chats reached
+    //      the DB only via history-sync backfill, which stopped covering
+    //      groups after WhatsApp's LID rollout.
+    //   2. Leaving the option `undefined` is *not* safe on Baileys rc.9: its
+    //      `handleNotification` path calls `shouldIgnoreJid(...)` without an
+    //      existence guard, so `undefined` triggers a TypeError reconnect loop.
+    // Default to `() => false` (don't ignore anything) explicitly.
     const { makeWASocket } = await import("@whiskeysockets/baileys");
     await initConnection();
-    expect(makeWASocket).toHaveBeenCalledWith(
-      expect.objectContaining({ shouldIgnoreJid: undefined }),
-    );
+    const call = (makeWASocket as any).mock.calls[0][0];
+    expect(typeof call.shouldIgnoreJid).toBe("function");
+    expect(call.shouldIgnoreJid("123@g.us")).toBe(false);
+    expect(call.shouldIgnoreJid("123@s.whatsapp.net")).toBe(false);
+    expect(call.shouldIgnoreJid("123@lid")).toBe(false);
   });
 
   it("forwards a caller-provided shouldIgnoreJid unchanged", async () => {

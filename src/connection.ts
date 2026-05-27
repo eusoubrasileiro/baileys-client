@@ -63,7 +63,15 @@ async function connectSocket(
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     generateHighQualityLinkPreview: config.generateHighQualityLinkPreview ?? true,
-    shouldIgnoreJid: config.shouldIgnoreJid,
+    // Baileys rc.9 calls this from `handleNotification` without an existence
+    // guard — passing `undefined` crashes with `TypeError: shouldIgnoreJid is
+    // not a function` in a reconnect loop. The previous default
+    // `(jid) => isJidGroup(jid)` silently NACKed every `@g.us` message at
+    // messages-recv.js:847/916/950, leaving group ingest broken in a way the
+    // history-sync backfill masked until WhatsApp's LID rollout stopped
+    // replaying groups. Explicit `() => false` keeps the runtime happy and
+    // lets every JID flow.
+    shouldIgnoreJid: config.shouldIgnoreJid ?? (() => false),
     syncFullHistory: config.syncFullHistory ?? true,
   });
 
