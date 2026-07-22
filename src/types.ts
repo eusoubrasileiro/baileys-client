@@ -130,6 +130,15 @@ export type BaileysClientConfig = {
   shouldIgnoreJid?: (jid: string) => boolean;
   generateHighQualityLinkPreview?: boolean;
   syncFullHistory?: boolean;
+  /**
+   * Gate applied to each history-sync notification. Defaults to accepting every
+   * sync type, including `FULL`.
+   *
+   * Passed explicitly on purpose: Baileys rc13 changed its own default to
+   * `({ syncType }) => syncType !== FULL`, so inheriting the upstream default
+   * would silently end full-history backfill.
+   */
+  shouldSyncHistoryMessage?: (notification: { syncType?: number | null }) => boolean;
   /** Inactivity timeout (ms) — resets on each sync batch. Default: 60000. */
   historySyncInactivityTimeoutMs?: number;
   /** @deprecated Use historySyncInactivityTimeoutMs instead. */

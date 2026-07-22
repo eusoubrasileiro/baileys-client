@@ -52,16 +52,24 @@ async function connectSocket(
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     generateHighQualityLinkPreview: config.generateHighQualityLinkPreview ?? true,
-    // Baileys rc.9 calls this from `handleNotification` without an existence
-    // guard — passing `undefined` crashes with `TypeError: shouldIgnoreJid is
-    // not a function` in a reconnect loop. The previous default
-    // `(jid) => isJidGroup(jid)` silently NACKed every `@g.us` message at
-    // messages-recv.js:847/916/950, leaving group ingest broken in a way the
-    // history-sync backfill masked until WhatsApp's LID rollout stopped
-    // replaying groups. Explicit `() => false` keeps the runtime happy and
-    // lets every JID flow.
+    // Baileys merges config over its defaults, so an explicitly-`undefined` key
+    // overrides the default with `undefined` — and `handleNotification` calls
+    // this without an existence guard, crashing the reconnect loop with
+    // `TypeError: shouldIgnoreJid is not a function`. Coalesce so the key is
+    // always a function.
+    //
+    // The value also matters historically: a `(jid) => isJidGroup(jid)` default
+    // silently NACKed every `@g.us` message, leaving group ingest broken in a
+    // way history-sync backfill masked until WhatsApp's LID rollout stopped
+    // replaying groups. rc13's own default is now `() => false`, matching this —
+    // kept explicit rather than inherited, since it has already moved once.
     shouldIgnoreJid: config.shouldIgnoreJid ?? (() => false),
     syncFullHistory: config.syncFullHistory ?? true,
+    // Must be explicit. rc.9 defaulted to `() => true`; rc13 defaults to
+    // `({syncType}) => syncType !== FULL`, which would silently drop the
+    // full-history backfill that search_messages and the reactive-monitoring
+    // cursor rely on.
+    shouldSyncHistoryMessage: config.shouldSyncHistoryMessage ?? (() => true),
   });
 
   socketState.socket = sock;

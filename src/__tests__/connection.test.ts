@@ -407,6 +407,34 @@ describe("connection event processing", () => {
     expect(makeWASocket).toHaveBeenCalledWith(expect.objectContaining({ syncFullHistory: false }));
   });
 
+  it("defaults shouldSyncHistoryMessage to accept FULL history syncs", async () => {
+    // Regression guard for the rc.9 → rc13 upgrade. Baileys changed this
+    // default out from under us:
+    //   rc.9  → `() => true`                       (accepts every sync type)
+    //   rc13  → `({syncType}) => syncType !== FULL` (silently drops FULL)
+    // We never set the option, so inheriting rc13's default would have quietly
+    // ended full-history backfill — which search_messages and the reactive
+    // monitoring cursor both depend on. Pass it explicitly rather than trust an
+    // upstream default that has already moved once.
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    const call = (makeWASocket as any).mock.calls[0][0];
+    expect(typeof call.shouldSyncHistoryMessage).toBe("function");
+    // syncType 2 === proto.HistorySync.HistorySyncType.FULL
+    expect(call.shouldSyncHistoryMessage({ syncType: 2 })).toBe(true);
+    expect(call.shouldSyncHistoryMessage({ syncType: 1 })).toBe(true);
+  });
+
+  it("forwards a caller-provided shouldSyncHistoryMessage unchanged", async () => {
+    const predicate = vi.fn().mockReturnValue(false);
+    config.shouldSyncHistoryMessage = predicate;
+    const { makeWASocket } = await import("@whiskeysockets/baileys");
+    await initConnection();
+    expect(makeWASocket).toHaveBeenCalledWith(
+      expect.objectContaining({ shouldSyncHistoryMessage: predicate }),
+    );
+  });
+
   it("defaults shouldIgnoreJid to a permissive (() => false) so groups flow", async () => {
     // Two-part regression:
     //   1. A previous default `(jid) => isJidGroup(jid)` silently NACKed every
