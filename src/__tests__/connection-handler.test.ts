@@ -197,4 +197,107 @@ describe("handleConnectionClose", () => {
       expect(deps.pRetryFn).not.toHaveBeenCalled();
     });
   });
+
+  describe("per-attempt timeout", () => {
+    /** Records scheduled timers instead of running them, so tests fire them by hand. */
+    function createTimerRecorder() {
+      const timers: Array<{ cb: () => void; ms: number }> = [];
+      return {
+        timers,
+        setTimeoutFn: vi.fn((cb: () => void, ms: number) => {
+          timers.push({ cb, ms });
+        }),
+      };
+    }
+
+    /** The attempt function the handler hands to `pRetryFn`. */
+    function attemptFnOf(deps: ConnectionCloseDeps): () => Promise<unknown> {
+      return (deps.pRetryFn as any).mock.calls[0][0];
+    }
+
+    it("counts a startConnection that never settles as a failed attempt", async () => {
+      const { timers, setTimeoutFn } = createTimerRecorder();
+      const deps = createMockDeps({
+        startConnection: vi.fn(() => new Promise<never>(() => {})),
+        setTimeoutFn,
+      });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+      const attempt = attemptFnOf(deps)();
+
+      expect(timers).toHaveLength(1);
+      expect(timers[0].ms).toBe(60_000);
+      timers[0].cb();
+
+      await expect(attempt).rejects.toThrow(/60000/);
+    });
+
+    it("leaves an attempt that resolves before the timeout untouched", async () => {
+      const socket = { id: "sock" } as any;
+      const { timers, setTimeoutFn } = createTimerRecorder();
+      const deps = createMockDeps({
+        startConnection: vi.fn().mockResolvedValue(socket),
+        setTimeoutFn,
+      });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+
+      await expect(attemptFnOf(deps)()).resolves.toBe(socket);
+      // A timer that fires after the race settled must stay harmless.
+      timers[0].cb();
+    });
+
+    it("uses the timeout the strategy asks for", async () => {
+      const { timers, setTimeoutFn } = createTimerRecorder();
+      const strategy: ReconnectionStrategy = {
+        decide: vi.fn().mockReturnValue("reconnect"),
+        getRetryOptions: vi.fn().mockReturnValue({
+          retries: 3,
+          minTimeout: 500,
+          maxTimeout: 5_000,
+          factor: 3,
+          randomize: false,
+        }),
+        getAttemptTimeoutMs: vi.fn().mockReturnValue(7_500),
+      };
+      const deps = createMockDeps({
+        startConnection: vi.fn(() => new Promise<never>(() => {})),
+        setTimeoutFn,
+        strategy,
+      });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+      const attempt = attemptFnOf(deps)();
+
+      expect(timers[0].ms).toBe(7_500);
+      timers[0].cb();
+      await expect(attempt).rejects.toThrow(/7500/);
+    });
+
+    it("falls back to 60s for a legacy strategy without getAttemptTimeoutMs", async () => {
+      const { timers, setTimeoutFn } = createTimerRecorder();
+      const legacyStrategy = {
+        decide: vi.fn().mockReturnValue("reconnect"),
+        getRetryOptions: vi.fn().mockReturnValue({
+          retries: 3,
+          minTimeout: 500,
+          maxTimeout: 5_000,
+          factor: 3,
+          randomize: false,
+        }),
+      } as ReconnectionStrategy;
+      const deps = createMockDeps({
+        startConnection: vi.fn(() => new Promise<never>(() => {})),
+        setTimeoutFn,
+        strategy: legacyStrategy,
+      });
+
+      handleConnectionClose(500, new Error("boom"), "InternalError", deps);
+      const attempt = attemptFnOf(deps)();
+
+      expect(timers[0].ms).toBe(60_000);
+      timers[0].cb();
+      await expect(attempt).rejects.toThrow(/60000/);
+    });
+  });
 });

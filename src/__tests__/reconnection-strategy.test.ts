@@ -72,4 +72,11 @@ describe("defaultReconnectionStrategy", () => {
       expect(opts.randomize).toBe(true);
     });
   });
+
+  describe("getAttemptTimeoutMs", () => {
+    it("caps a single reconnect attempt at 60s so a hung attempt cannot park the retry loop", () => {
+      const strategy = defaultReconnectionStrategy();
+      expect(strategy.getAttemptTimeoutMs?.()).toBe(60_000);
+    });
+  });
 });

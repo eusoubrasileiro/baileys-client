@@ -298,4 +298,14 @@ export type ReconnectionStrategy = {
     factor: number;
     randomize: boolean;
   };
+  /**
+   * Upper bound (ms) for a single reconnect attempt. p-retry only counts an
+   * attempt once its promise settles, so a `startConnection()` that hangs
+   * forever parks the whole retry loop (observed in production 2026-07-28:
+   * one attempt pending for 21h, no further attempt ever logged). The handler
+   * races each attempt against this cap and treats the timeout as a failed
+   * attempt. Optional for backward compatibility — strategies written before
+   * this method existed fall back to 60s.
+   */
+  getAttemptTimeoutMs?: () => number;
 };

@@ -1,5 +1,34 @@
-import { defaultReconnectionStrategy } from "./reconnection-strategy.js";
-import type { ConnectionCloseDeps } from "./types.js";
+import {
+  DEFAULT_ATTEMPT_TIMEOUT_MS,
+  defaultReconnectionStrategy,
+} from "./reconnection-strategy.js";
+import type { ConnectionCloseDeps, WhatsAppSocket } from "./types.js";
+
+/**
+ * Races one reconnect attempt against `timeoutMs`, so a `startConnection()`
+ * that never settles rejects and counts as a *failed* attempt. Without this,
+ * p-retry — which advances only when the attempt promise settles — parks on
+ * the pending promise and never retries or gives up (production 2026-07-28:
+ * a single attempt left pending for 21h).
+ *
+ * The timer is not cleared: a timer that fires after the race settled rejects
+ * the losing branch, which `Promise.race` already subscribed to, so it cannot
+ * surface as an unhandled rejection.
+ */
+function startConnectionWithTimeout(
+  deps: ConnectionCloseDeps,
+  timeoutMs: number,
+): Promise<WhatsAppSocket> {
+  return Promise.race([
+    deps.startConnection(),
+    new Promise<never>((_, reject) => {
+      deps.setTimeoutFn(
+        () => reject(new Error(`Reconnect attempt did not settle within ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+    }),
+  ]);
+}
 
 export function handleConnectionClose(
   statusCode: number | undefined,
@@ -32,8 +61,9 @@ export function handleConnectionClose(
     // would require modifying an existing `ConnectionCloseDeps` field — off
     // limits for this iteration (sibling-agent merge hazard).
     const { retries, minTimeout, maxTimeout, factor } = strategy.getRetryOptions();
+    const attemptTimeoutMs = strategy.getAttemptTimeoutMs?.() ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
     deps
-      .pRetryFn(() => deps.startConnection(), {
+      .pRetryFn(() => startConnectionWithTimeout(deps, attemptTimeoutMs), {
         retries,
         minTimeout,
         maxTimeout,
