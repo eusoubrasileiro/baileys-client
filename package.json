@@ -20,7 +20,10 @@
     "check": "biome check .",
     "format": "biome check --write .",
     "dispatch": "bash scripts/dispatch-worktree.sh",
-    "dispatch:cleanup": "bash scripts/cleanup-worktrees.sh"
+    "dispatch:cleanup": "bash scripts/cleanup-worktrees.sh",
+    "prepare": "husky",
+    "typecheck": "tsc --noEmit",
+    "test:harness": "node --test \"scripts/*.test.mjs\" \"scripts/lib/*.test.mjs\""
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc13",
@@ -30,7 +33,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@types/node": "^25.6.0",
+    "husky": "^9.1.7",
     "tsup": "^8.4.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"

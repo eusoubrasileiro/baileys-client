@@ -1,0 +1,30 @@
+{
+  "_comment": "Restriction policy for Claude Code agents. 'ask' = human approval required. There is deliberately NO 'allow' list: tool grants live once in standards/claude-config/settings.json as bare tool names, rules from all scopes merge and evaluate deny -> ask -> allow, so a project 'allow' can never widen anything and only rots. See standards.md#permissions.",
+  "_comment_project": "This library has no service of its own -- a regression reaches whatsapp-mcp and bulk-messages at once. The connection/reconnect state machine is the highest-blast-radius code here: a wrong retry logs the account out of WhatsApp, and re-pairing needs the physical handset.",
+  "permissions": {
+    "ask": [
+      "Edit(.husky/**)",
+      "Write(.husky/**)",
+      "Edit(.claude/settings.json)",
+      "Write(.claude/settings.json)",
+      "Edit(commitlint.config.cjs)",
+      "Write(commitlint.config.cjs)",
+      "Edit(scripts/security-review.mjs)",
+      "Write(scripts/security-review.mjs)",
+      "Edit(scripts/lib/**)",
+      "Write(scripts/lib/**)",
+      "Edit(scripts/dispatch-worktree.sh)",
+      "Write(scripts/dispatch-worktree.sh)",
+      "Edit(src/connection.ts)",
+      "Write(src/connection.ts)",
+      "Edit(src/connection-handler.ts)",
+      "Write(src/connection-handler.ts)",
+      "Edit(src/reconnection-strategy.ts)",
+      "Write(src/reconnection-strategy.ts)",
+      "Edit(src/index.ts)",
+      "Write(src/index.ts)",
+      "Edit(src/__tests__/**)",
+      "Write(src/__tests__/**)"
+    ]
+  }
+}

@@ -54,3 +54,37 @@ variant of the standards harness — no Postgres, no ports. Pre-write a plan
 at `.claude/plans/<slug>.md`; dispatch materialises an isolated worktree at
 `.claude/worktrees/<slug>` on branch `agent/<slug>` and stamps the agent
 contract as `.claude/AGENT.md`. Cleanup: `pnpm dispatch:cleanup --slug <slug>`.
+
+## The gate
+
+| Stage | Runs |
+|---|---|
+| pre-commit | `pnpm check` (biome) · `tsc --noEmit` · `pnpm test` (vitest, 211) · `pnpm test:harness` (~5s total) |
+| commit-msg | commitlint, conventional types |
+| pre-push | the same, plus the review log for the pushed range and `scripts/security-review.mjs` |
+
+`scripts/**/*.test.mjs` are `node:test` files copied from
+`standards/templates/`, which vitest cannot run — hence the `test:harness`
+split and the explicit `include` in `vitest.config.ts`. Do not fork them to
+suit a runner; the template is the source of truth.
+
+> **Conformance:** `qgat` — n/a: TODO-RATIFY: a ratchet needs a coverage baseline this library has never had; adding one is work, not config.
+
+## Behavioral probes
+
+The 211 unit tests drive the reconnect state machine against fakes. They cannot
+tell you the real socket reconnects after WhatsApp drops it — and getting that
+wrong logs the account out, which needs the physical handset to undo.
+
+| Probe | Tool | Allowed target |
+|---|---|---|
+| A dropped connection re-pairs and resumes without a logout | this library's own `startConnection`, driven from a scratch script | a throwaway auth dir and the coexistence test number — **never** a paired production session dir |
+| The upstream baileys API still matches what the contract tests pin, after a dependency bump | `pnpm test` plus reading the diff | offline |
+
+Run at the merge/done boundary. The first probe touches WhatsApp's live network
+and stays **attended**.
+
+⚠️ This library has no service of its own: `whatsapp-mcp` and `bulk-messages`
+both consume it, so a regression here reaches both at once. A change to
+`connection.ts`, `connection-handler.ts` or `reconnection-strategy.ts` is worth
+probing before it lands, not after.

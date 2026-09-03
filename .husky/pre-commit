@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Fast gate (~5s). This is a pure library with no build step in the loop, so
+# the whole deterministic gate fits comfortably inside the ~30s ceiling
+# (standards.md#dual-gate).
+pnpm check
+pnpm exec tsc --noEmit
+pnpm test
+pnpm test:harness
