@@ -4,9 +4,25 @@ Shared WhatsApp client library wrapping [@whiskeysockets/baileys](https://github
 
 ## Install
 
+The package is installed straight from GitHub. `dist/` is not committed — a `prepack`
+script builds it during a git install, and pnpm 10 only runs a git dependency's build
+script when the consuming project allows it. Add the allowlist first:
+
+```jsonc
+// your package.json
+"pnpm": {
+  "onlyBuiltDependencies": ["@amiticia/baileys-client"]
+}
+```
+
 ```bash
 pnpm add github:AmiticIA-AutoSys/baileys-client
 ```
+
+To develop against a local checkout instead (how
+[whatsapp-mcp](https://github.com/AmiticIA-AutoSys/whatsapp-mcp) consumes it), clone the
+two repos side by side, depend on `"@amiticia/baileys-client": "link:../baileys-client"`,
+and run `pnpm install && pnpm build` in this repo.
 
 ## Usage
 
@@ -43,7 +59,7 @@ const result = await sendTextMessage(socket, jid, "Hello!", logger);
 
 ### Sending
 
-- `sendTextMessage(socket, jid, text, logger)` — returns `{ success, messageId?, error? }`
+- `sendTextMessage(socket, jid, text, logger)` — returns `{ success, messageId?, error?, errorKind? }`; never throws. `errorKind` is `transient` / `permanent` / `unknown` (see `classifySenderError`)
 - `sendMediaMessage(socket, jid, { buffer, type, caption?, fileName?, mimetype? }, logger)` — same return shape
 
 ### Utilities
