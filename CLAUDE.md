@@ -1,6 +1,6 @@
 # @amiticia/baileys-client
 
-Shared Baileys WhatsApp client library. Consumed by `whatsapp-mcp` and `bulk-messages`.
+Shared Baileys WhatsApp client library. Consumed by [`whatsapp-mcp`](https://github.com/AmiticIA-AutoSys/whatsapp-mcp).
 
 ## Commands
 
