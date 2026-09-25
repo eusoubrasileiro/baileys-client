@@ -16,11 +16,11 @@ script when the consuming project allows it. Add the allowlist first:
 ```
 
 ```bash
-pnpm add github:AmiticIA-AutoSys/baileys-client
+pnpm add github:eusoubrasileiro/baileys-client
 ```
 
 To develop against a local checkout instead (how
-[whatsapp-mcp](https://github.com/AmiticIA-AutoSys/whatsapp-mcp) consumes it), clone the
+[whatsapp-mcp](https://github.com/eusoubrasileiro/whatsapp-mcp) consumes it), clone the
 two repos side by side, depend on `"@amiticia/baileys-client": "link:../baileys-client"`,
 and run `pnpm install && pnpm build` in this repo.
 

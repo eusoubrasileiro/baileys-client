@@ -1,6 +1,6 @@
 # @amiticia/baileys-client
 
-Shared Baileys WhatsApp client library. Consumed by [`whatsapp-mcp`](https://github.com/AmiticIA-AutoSys/whatsapp-mcp).
+Shared Baileys WhatsApp client library. Consumed by [`whatsapp-mcp`](https://github.com/eusoubrasileiro/whatsapp-mcp).
 
 ## Commands
 
