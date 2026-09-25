@@ -15,7 +15,7 @@ import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Contract tests pinning the @whiskeysockets/baileys API surface consumed by
-// this package. Must stay green across 7.0.0-rc.9 → rc13.
+// this package. Must stay green across 7.0.0-rc.9 → rc13 → rc14.
 //
 // A failure here means Baileys moved something we depend on — read the upstream
 // changelog before "fixing" the test.
