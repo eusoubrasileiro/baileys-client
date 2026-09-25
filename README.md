@@ -1,5 +1,7 @@
 # @amiticia/baileys-client
 
+[![CI](https://github.com/eusoubrasileiro/baileys-client/actions/workflows/ci.yml/badge.svg)](https://github.com/eusoubrasileiro/baileys-client/actions/workflows/ci.yml)
+
 A small, storage-free WhatsApp client library wrapping
 [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `7.0.0-rc14`. It
 handles connection, reconnection, history sync, message sending, media download and
