@@ -84,3 +84,8 @@ pnpm test      # vitest
 pnpm check     # biome lint + format
 pnpm format    # biome auto-fix
 ```
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE). Not affiliated with WhatsApp or Meta; Baileys is an unofficial
+WhatsApp Web client, so use it within WhatsApp's terms and at your own risk.
