@@ -57,7 +57,7 @@ Husky runs it; never bypass with `--no-verify` — fix the root cause.
 |---|---|
 | pre-commit | `pnpm check` · `pnpm exec tsc --noEmit` · `pnpm test` (vitest) · `pnpm test:harness` |
 | commit-msg | commitlint, Conventional Commits |
-| pre-push | the same, plus `scripts/security-review.mjs` (an LLM review via the `claude` CLI) |
+| pre-push | the same, plus `scripts/security-review.mjs` (an LLM review via the `claude` CLI — without an authenticated `claude` on PATH the push is refused; outside contributors can open a PR instead) |
 
 `pnpm test:harness` runs the `node:test` files under `scripts/` (the review/dispatch
 tooling); vitest cannot run them, hence the split and the explicit `include` in
