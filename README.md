@@ -1,6 +1,23 @@
 # @amiticia/baileys-client
 
-Shared WhatsApp client library wrapping [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys). Handles connection, reconnection, message sending, and JID utilities with a pluggable event-hook pattern.
+A small, storage-free WhatsApp client library wrapping
+[@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `7.0.0-rc14`. It
+handles connection, reconnection, history sync, message sending, media download and
+JID/LID utilities, and forwards every Baileys event to hooks you supply — what to persist
+is entirely up to the consumer.
+
+Consumed by [whatsapp-mcp](https://github.com/eusoubrasileiro/whatsapp-mcp).
+
+```mermaid
+flowchart LR
+    WA[(WhatsApp Web)] <--> B[Baileys socket]
+    B -- "sock.ev.process" --> D[createEventDispatcher]
+    D --> H["BaileysClientHooks<br/>(onMessageUpsert, onHistorySync, ...)"]
+    H --> C[Your app: DB, MCP server, ...]
+    B -- "connection close" --> R[handleConnectionClose]
+    R -- "ReconnectionStrategy" --> B
+    C -- "sendTextMessage / sendMediaMessage / downloadMedia" --> B
+```
 
 ## Install
 
@@ -47,7 +64,7 @@ const { socket, connectionState, socketState } = await startConnection({
 });
 
 // Send a message
-const jid = phoneToJid("5511999887766");
+const jid = phoneToJid("5511900000000");
 const result = await sendTextMessage(socket, jid, "Hello!", logger);
 ```
 
@@ -55,25 +72,37 @@ const result = await sendTextMessage(socket, jid, "Hello!", logger);
 
 ### Connection
 
-- `startConnection(config)` — creates socket, wires Baileys events to hooks, handles auto-reconnect. Returns `{ socket, connectionState, socketState }`.
+- `startConnection(config)` — creates the socket, wires Baileys events to hooks, handles auto-reconnect. Returns `{ socket, connectionState, socketState }` (no singletons — one set per call).
+  - `config`: `authDir`, `logger` (pino), `hooks?`, `shouldIgnoreJid?`, `syncFullHistory?`, `shouldSyncHistoryMessage?` (defaults to accepting every sync type, including `FULL`), `historySyncInactivityTimeoutMs?` (default 60000), `generateHighQualityLinkPreview?`.
+  - Hooks: `onQrCode`, `onConnecting`, `onConnected`, `onDisconnected`, `onReady`, `onMessageUpsert`, `onMessagesUpdate`, `onContactsUpsert`, `onContactsUpdate`, `onChatsUpdate`, `onHistorySync`, `onGroupsSync`, `onLidMapping`.
+- `handleConnectionClose(...)`, `defaultReconnectionStrategy()`, `DEFAULT_ATTEMPT_TIMEOUT_MS` — the reconnect decision (retry / logout / give up) and its pluggable policy (`ReconnectionStrategy`).
+- `createEventDispatcher(deps)` — the Baileys-event → hook dispatcher, exported for testing and custom wiring.
 
 ### Sending
 
 - `sendTextMessage(socket, jid, text, logger)` — returns `{ success, messageId?, error?, errorKind? }`; never throws. `errorKind` is `transient` / `permanent` / `unknown` (see `classifySenderError`)
 - `sendMediaMessage(socket, jid, { buffer, type, caption?, fileName?, mimetype? }, logger)` — same return shape
+- `classifySenderError(err)` — maps a thrown error to a `SenderErrorKind`
+
+### Media
+
+- `downloadMedia(socket, params, logger, adapter?)` — downloads and decrypts media from its stored key/path; on an expired CDN URL, the `MediaRefreshAdapter` (default: `defaultMediaRefreshAdapter()`) re-requests it once and retries
 
 ### Utilities
 
-- `phoneToJid(phone)` — `"5511999..."` to `"5511999...@s.whatsapp.net"`
+- `phoneToJid(phone)` — `"5511900000000"` to `"5511900000000@s.whatsapp.net"`
 - `normalizeJid(jid)` — strips device suffix
-- `isGroupJid(jid)` — checks `@g.us`
+- `isGroupJid(jid)` / `isLidJid(jid)` — checks `@g.us` / `@lid`
+- `makeLidResolver(socket)` — `getPNForLID(lid)` / `getLIDForPN(pn)` over Baileys' LID mapping store
 - `parseMessage(msg)` — extracts text/media content into a flat `ParsedMessage`
+- `extractMessageContent(content)` — preview string for any Baileys message envelope
 - `extractMediaInfo(message)` — pulls media metadata from a WAMessage
+- `mimetypeToExtension` — mimetype → file-extension map
 - `generateAsciiQR(data)` — renders QR as ASCII string
 
 ### Types
 
-`BaileysClientConfig`, `BaileysClientHooks`, `ConnectionState`, `WhatsAppSocket`, `ParsedMessage`, `MediaInfo`, plus re-exported Baileys types (`WAMessage`, `WAMessageUpdate`, `Contact`, `Chat`).
+`BaileysClientConfig`, `BaileysClientHooks`, `ConnectionState`, `ConnectionStatus`, `SocketState`, `WhatsAppSocket`, `SendResult`, `SenderErrorKind`, `ParsedMessage`, `MessageContent`, `MessageContentExtractor`, `MediaInfo`, `MediaType`, `DownloadMediaParams`, `MediaRefreshAdapter`, `MediaRefreshContext`, `ReconnectionStrategy`, `ConnectionCloseDeps`, `EventDispatcherDeps`, `LidResolver`, plus re-exported Baileys types (`WAMessage`, `WAMessageUpdate`, `Contact`, `Chat`).
 
 ## Development
 
@@ -81,9 +110,14 @@ const result = await sendTextMessage(socket, jid, "Hello!", logger);
 pnpm install
 pnpm build     # tsup -> dist/
 pnpm test      # vitest
+pnpm typecheck # tsc --noEmit
 pnpm check     # biome lint + format
 pnpm format    # biome auto-fix
 ```
+
+Husky hooks enforce the gate: `pre-commit` runs check, typecheck and both test suites;
+`commit-msg` runs commitlint (Conventional Commits). The unit tests drive the reconnect
+state machine against fakes and never touch WhatsApp's network.
 
 ## License
 

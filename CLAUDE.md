@@ -1,6 +1,8 @@
 # @amiticia/baileys-client
 
-Shared Baileys WhatsApp client library. Consumed by [`whatsapp-mcp`](https://github.com/eusoubrasileiro/whatsapp-mcp).
+Storage-free WhatsApp client library over `@whiskeysockets/baileys` 7.0.0-rc14. Consumed by
+[`whatsapp-mcp`](https://github.com/eusoubrasileiro/whatsapp-mcp) as a sibling checkout
+(`link:../baileys-client`). Public API: `src/index.ts`; user docs: `README.md`.
 
 ## Commands
 
@@ -9,9 +11,9 @@ pnpm build     # tsup — ESM bundle + .d.ts to dist/
 pnpm test      # vitest run
 pnpm check     # biome check (lint + format)
 pnpm format    # biome check --write (auto-fix)
+pnpm typecheck # tsc --noEmit
+pnpm test:harness  # node:test suites for scripts/
 ```
-
-Always run `pnpm check` before committing.
 
 ## Architecture
 
@@ -47,44 +49,36 @@ Always run `pnpm check` before committing.
 - Functions take dependencies as parameters, not from module-level singletons
 - Sender functions return `{ success, messageId?, error?, errorKind? }` — never throw
 
-## Multi-agent dispatch harness
+## Gate
 
-See `scripts/dispatch-worktree.sh` (`pnpm dispatch <slug>`). Library-only
-variant of the standards harness — no Postgres, no ports. Pre-write a plan
-at `.claude/plans/<slug>.md`; dispatch materialises an isolated worktree at
-`.claude/worktrees/<slug>` on branch `agent/<slug>` and stamps the agent
-contract as `.claude/AGENT.md`. Cleanup: `pnpm dispatch:cleanup --slug <slug>`.
+Husky runs it; never bypass with `--no-verify` — fix the root cause.
 
-## The gate
-
-| Stage | Runs |
+| Hook | Runs |
 |---|---|
-| pre-commit | `pnpm check` (biome) · `tsc --noEmit` · `pnpm test` (vitest, 211) · `pnpm test:harness` (~5s total) |
-| commit-msg | commitlint, conventional types |
-| pre-push | the same, plus the review log for the pushed range and `scripts/security-review.mjs` |
+| pre-commit | `pnpm check` · `pnpm exec tsc --noEmit` · `pnpm test` (vitest) · `pnpm test:harness` |
+| commit-msg | commitlint, Conventional Commits |
+| pre-push | the same, plus `scripts/security-review.mjs` (an LLM review via the `claude` CLI) |
 
-`scripts/**/*.test.mjs` are `node:test` files copied from
-`standards/templates/`, which vitest cannot run — hence the `test:harness`
-split and the explicit `include` in `vitest.config.ts`. Do not fork them to
-suit a runner; the template is the source of truth.
+`pnpm test:harness` runs the `node:test` files under `scripts/` (the review/dispatch
+tooling); vitest cannot run them, hence the split and the explicit `include` in
+`vitest.config.ts`.
 
-> **Conformance:** `qgat` — n/a: TODO-RATIFY: a ratchet needs a coverage baseline this library has never had; adding one is work, not config.
+## Parallel work
 
-## Behavioral probes
+`pnpm dispatch <slug>` (`scripts/dispatch-worktree.sh`) needs a plan at
+`.claude/plans/<slug>.md`, creates a worktree at `.claude/worktrees/<slug>` on branch
+`agent/<slug>`, and stamps `scripts/agent-prompt.md` into it as `.claude/AGENT.md`.
+Cleanup: `pnpm dispatch:cleanup --slug <slug>`.
 
-The 211 unit tests drive the reconnect state machine against fakes. They cannot
-tell you the real socket reconnects after WhatsApp drops it — and getting that
-wrong logs the account out, which needs the physical handset to undo.
+## Reconnection is the risky path
 
-| Probe | Tool | Allowed target |
-|---|---|---|
-| A dropped connection re-pairs and resumes without a logout | this library's own `startConnection`, driven from a scratch script | a throwaway auth dir and the coexistence test number — **never** a paired production session dir |
-| The upstream baileys API still matches what the contract tests pin, after a dependency bump | `pnpm test` plus reading the diff | offline |
+Unit tests drive the reconnect state machine against fakes; they cannot prove a real
+socket survives a WhatsApp drop, and getting it wrong logs the account out (only the
+paired phone can undo that). Before landing changes to `connection.ts`,
+`connection-handler.ts` or `reconnection-strategy.ts`, exercise `startConnection` from a
+scratch script against a throwaway auth dir and a test number — never a paired
+production session — with a human watching. After a Baileys bump, re-run `pnpm test`
+and read the upstream diff: the contract tests pin its API.
 
-Run at the merge/done boundary. The first probe touches WhatsApp's live network
-and stays **attended**.
-
-⚠️ This library has no service of its own: `whatsapp-mcp` and `bulk-messages`
-both consume it, so a regression here reaches both at once. A change to
-`connection.ts`, `connection-handler.ts` or `reconnection-strategy.ts` is worth
-probing before it lands, not after.
+Downstream consumers (e.g. `whatsapp-mcp`) pick up every regression here, so treat
+exported signatures as a public API.

@@ -37,9 +37,10 @@ it doesn't cover something, stop and report rather than guessing.
    pnpm test          # must be green
    pnpm exec tsc --noEmit
    pnpm check         # biome
+   pnpm test:harness  # node:test suites for scripts/
    pnpm build         # tsup — must succeed
    ```
-   All four must pass. If any fail, fix the root cause; do not skip.
+   All five must pass. If any fail, fix the root cause; do not skip.
 
 7. **No premature abstraction.** Build the deepening described in PLAN.md.
    Don't bolt on extra features, error handlers, or hypothetical seams.
@@ -56,7 +57,7 @@ Report back with:
 - The commit SHA on `agent/${AGENT_SLUG}`.
 - One paragraph describing what changed and how the deepening was achieved.
 - The diff stat: `git diff --stat main...HEAD`.
-- Confirmation that all four gates (test / tsc / check / build) are green.
+- Confirmation that all five gates (test / tsc / check / harness / build) are green.
 
 The leader takes it from there — you do NOT merge into main, and you do NOT
 open the PR yourself.
